@@ -312,16 +312,14 @@ function App() {
             )}
           </header>
 
-          <div className="flex-1 flex items-center justify-center bg-gray-900 rounded-2xl border border-gray-800 relative group overflow-hidden">
-            <div className="relative w-full h-full flex items-center justify-center" id="video-container">
-              <VideoPlayer
-                ref={videoRef}
-                src={videoSrc}
-                onTimeUpdate={handleTimeUpdate}
-                onLoadedMetadata={handleLoadedMetadata}
-              />
-
-              {/* Visual Overlay for Subtitles */}
+          <div className="flex-1 flex items-center justify-center bg-gray-950 rounded-2xl border border-gray-950 relative group overflow-hidden">
+            <VideoPlayer
+              ref={videoRef}
+              src={videoSrc}
+              onTimeUpdate={handleTimeUpdate}
+              onLoadedMetadata={handleLoadedMetadata}
+            >
+              {/* Visual Overlay for Subtitles - Now perfectly aligned to video frame */}
               {videoSrc && (
                 <div
                   className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center"
@@ -330,7 +328,7 @@ function App() {
                       const rect = e.currentTarget.getBoundingClientRect();
                       const x = ((e.clientX - rect.left) / rect.width) * 100;
                       const y = ((e.clientY - rect.top) / rect.height) * 100;
-                      setSubtitleStyles(prev => ({ ...prev, position: { x, y: Math.max(0, Math.min(100, y)) } }));
+                      setSubtitleStyles(prev => ({ ...prev, position: { x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) } }));
                     }
                   }}
                   style={{ pointerEvents: activeTab === 'style' ? 'auto' : 'none' }}
@@ -363,7 +361,7 @@ function App() {
                   })}
                 </div>
               )}
-            </div>
+            </VideoPlayer>
           </div>
 
           {/* Helper info (optional) */}
@@ -442,7 +440,7 @@ function App() {
             )}
           </div>
         </div>
-    </div>
+      </div>
     </>
   );
 }

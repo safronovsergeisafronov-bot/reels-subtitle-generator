@@ -36,6 +36,10 @@ def get_available_fonts() -> List[Dict[str, str]]:
             # Simple clean up for display
             display_name = name
             
+            # Filter out very large fonts (like Apple Color Emoji) that cause browser issues
+            if os.path.getsize(file_path) > 20 * 1024 * 1024:
+                continue
+                
             if display_name not in seen_names:
                 fonts.append({
                     "name": display_name,

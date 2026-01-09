@@ -29,7 +29,7 @@ const StylePanel = ({ styles, onUpdateStyles, fontList }) => {
     });
 
     return (
-        <div className="bg-gray-900 border-l border-gray-800 p-4 w-64 flex flex-col gap-6 overflow-y-auto h-full">
+        <div className="bg-gray-900 border-l border-gray-800 p-4 w-full flex flex-col gap-6 overflow-y-auto h-full">
             <div>
                 <h3 className="text-white font-bold mb-4 flex items-center gap-2">
                     <Type size={18} /> Style Settings
