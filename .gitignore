@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+.Python
+venv/
+.venv/
+env/
+*.egg-info/
+
+# Build outputs
+dist/
+build/
+*.egg
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+*.log
+backend.log
+frontend.log
+
+# Uploads (user-generated content)
+backend/uploads/
+
+# Environment
+.env
+.env.local
+
+# Whisper model cache
+.cache/
+
+# OS
+Thumbs.db
+*.mp4
