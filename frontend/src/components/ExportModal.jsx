@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Loader2, X, CheckCircle, AlertCircle } from 'lucide-react';
 
-const _defaultWsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000';
+const _rawWsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000';
+const _defaultWsUrl = _rawWsUrl.replace(/^https:\/\//, 'wss://').replace(/^http:\/\//, 'ws://');
 
 const ExportModal = ({ isOpen, progress: externalProgress, onCancel, taskId, wsUrl = _defaultWsUrl }) => {
     const [progress, setProgress] = useState(0);

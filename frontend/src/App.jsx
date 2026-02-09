@@ -13,7 +13,8 @@ import { useAutoSave, loadAutoSave } from './hooks/useAutoSave';
 import { Upload, Loader2, Sparkles, Type, List, Undo2, Redo2, Wand2 } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
-const WS_URL = import.meta.env.VITE_WS_URL || "ws://127.0.0.1:8000";
+const _rawWsUrl = import.meta.env.VITE_WS_URL || "ws://127.0.0.1:8000";
+const WS_URL = _rawWsUrl.replace(/^https:\/\//, "wss://").replace(/^http:\/\//, "ws://");
 
 function AppContent() {
   const { toast } = useToast();
