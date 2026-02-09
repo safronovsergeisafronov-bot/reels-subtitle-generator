@@ -28,7 +28,7 @@ const VideoControls = ({
     };
 
     return (
-        <div className="flex items-center justify-between px-6 py-3 bg-gray-900/90 border-t border-gray-800">
+        <div className="flex items-center justify-between px-4 py-2 bg-gray-900/90 border-t border-gray-800">
             {/* Left: Time Display + Volume */}
             <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2 text-xs font-mono">
@@ -61,12 +61,12 @@ const VideoControls = ({
             {/* Center: Play/Pause Button */}
             <button
                 onClick={onPlayPause}
-                className="flex items-center justify-center w-12 h-12 rounded-full bg-indigo-600 hover:bg-indigo-700 transition-all shadow-lg hover:scale-105 active:scale-95"
+                className="flex items-center justify-center w-9 h-9 rounded-full bg-indigo-600 hover:bg-indigo-700 transition-all shadow-lg hover:scale-105 active:scale-95"
             >
                 {isPlaying ? (
-                    <Pause size={24} className="text-white fill-white" />
+                    <Pause size={18} className="text-white fill-white" />
                 ) : (
-                    <Play size={24} className="text-white fill-white ml-0.5" />
+                    <Play size={18} className="text-white fill-white ml-0.5" />
                 )}
             </button>
 

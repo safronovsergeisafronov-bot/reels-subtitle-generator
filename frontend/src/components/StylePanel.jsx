@@ -44,23 +44,23 @@ const StylePanel = ({ styles, onUpdateStyles, fontList, onApplyPreset }) => {
     };
 
     return (
-        <div className="bg-gray-900 border-l border-gray-800 p-4 w-full flex flex-col gap-6 overflow-y-auto h-full">
+        <div className="bg-gray-900 border-l border-gray-800 p-3 w-full flex flex-col gap-4 overflow-y-auto h-full">
             <div>
-                <h3 className="text-white font-bold mb-4 flex items-center gap-2">
+                <h3 className="text-white font-bold mb-2 flex items-center gap-2">
                     <Type size={18} /> Style Settings
                 </h3>
 
                 {/* Presets Section */}
-                <div className="mb-6">
+                <div className="mb-4">
                     <label className="text-xs text-gray-400 block mb-2 flex items-center gap-1">
                         <Palette size={12} />
                         PRESETS
                     </label>
-                    <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
+                    <div className="flex gap-1.5 overflow-x-auto pb-2 custom-scrollbar">
                         {(stylePresets || []).map((preset) => (
                             <div
                                 key={preset.name}
-                                className="flex-shrink-0 w-32 bg-zinc-800 hover:bg-zinc-700 rounded-lg p-3 cursor-pointer transition-colors border border-zinc-700 hover:border-zinc-500"
+                                className="flex-shrink-0 w-24 bg-zinc-800 hover:bg-zinc-700 rounded-lg p-2 cursor-pointer transition-colors border border-zinc-700 hover:border-zinc-500"
                                 onClick={() => handleApplyPreset(preset)}
                             >
                                 <div
@@ -84,13 +84,13 @@ const StylePanel = ({ styles, onUpdateStyles, fontList, onApplyPreset }) => {
                     </div>
                 </div>
 
-                <div className="mb-6">
+                <div className="mb-4">
                     <label className="text-xs text-gray-400 block mb-2">FONT FAMILY</label>
-                    <div className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700 max-h-60 overflow-y-auto">
+                    <div className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700 max-h-48 overflow-y-auto">
                         {sortedFonts.map((font) => (
                             <div
                                 key={font.name}
-                                className={`flex items-center justify-between p-2 cursor-pointer hover:bg-gray-700 transition-colors ${styles.fontFamily === font.name ? 'bg-blue-900/40' : ''}`}
+                                className={`flex items-center justify-between p-1.5 cursor-pointer hover:bg-gray-700 transition-colors ${styles.fontFamily === font.name ? 'bg-blue-900/40' : ''}`}
                                 onClick={() => onUpdateStyles({ ...styles, fontFamily: font.name })}
                             >
                                 <div className="flex items-center gap-2 overflow-hidden">
@@ -116,7 +116,7 @@ const StylePanel = ({ styles, onUpdateStyles, fontList, onApplyPreset }) => {
                     </div>
                 </div>
 
-                <div className="mb-6">
+                <div className="mb-4">
                     <label className="text-xs text-gray-400 block mb-2">FONT SIZE ({styles.fontSize}px)</label>
                     <input
                         type="range"
@@ -128,13 +128,13 @@ const StylePanel = ({ styles, onUpdateStyles, fontList, onApplyPreset }) => {
                     />
                 </div>
 
-                <div className="mb-6">
+                <div className="mb-4">
                     <label className="text-xs text-gray-400 block mb-2">TEXT COLOR</label>
                     <div className="flex gap-2">
                         {['#FFFFFF', '#FFFF00', '#00FFFF', '#FF00FF', '#FF0000', '#00FF00'].map(color => (
                             <div
                                 key={color}
-                                className={`w-8 h-8 rounded-full cursor-pointer ring-2 ${styles.textColor === color ? 'ring-blue-500' : 'ring-transparent'}`}
+                                className={`w-6 h-6 rounded-full cursor-pointer ring-2 ${styles.textColor === color ? 'ring-blue-500' : 'ring-transparent'}`}
                                 style={{ backgroundColor: color }}
                                 onClick={() => onUpdateStyles({ ...styles, textColor: color })}
                             />
@@ -142,7 +142,7 @@ const StylePanel = ({ styles, onUpdateStyles, fontList, onApplyPreset }) => {
                     </div>
                 </div>
 
-                <div className="mb-6">
+                <div className="mb-4">
                     <label className="text-xs text-gray-400 block mb-2">CAPS LOCK</label>
                     <button
                         onClick={() => onUpdateStyles({ ...styles, uppercase: !styles.uppercase })}

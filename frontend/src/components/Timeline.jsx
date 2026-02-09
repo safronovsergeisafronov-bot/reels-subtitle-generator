@@ -173,7 +173,7 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
     };
 
     return (
-        <div className="bg-gray-950 border-t border-gray-800 h-48 flex flex-col overflow-hidden">
+        <div className="bg-gray-950 border-t border-gray-800 h-36 flex flex-col overflow-hidden">
             <div className="flex justify-between items-center px-4 py-2 border-b border-gray-800 bg-gray-900/50">
                 <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Timeline</span>
                 <div className="flex items-center gap-4">
@@ -204,11 +204,11 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
                 </div>
 
                 {/* Subtitle Track */}
-                <div className="absolute top-10 left-0 h-24 w-full flex items-center bg-gray-900/20">
+                <div className="absolute top-10 left-0 h-16 w-full flex items-center bg-gray-900/20">
                     {(subtitles || []).map((sub, index) => (
                         <div
                             key={index}
-                            className={`absolute h-14 rounded border transition-all group ${
+                            className={`absolute h-10 rounded border transition-all group ${
                                 collisionIndex === index
                                     ? 'collision-flash'
                                     : ''

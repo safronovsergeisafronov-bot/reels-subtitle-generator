@@ -365,14 +365,14 @@ function AppContent() {
       <div className="flex h-screen bg-gray-950 text-white overflow-hidden font-sans">
         {/* Left Panel - Video & Timeline */}
         <div
-          className={`flex flex-col p-6 border-r border-gray-800 transition-colors duration-200 ${isDragging ? 'bg-indigo-900/20 border-2 border-dashed border-indigo-500/50' : ''}`}
+          className={`flex flex-col p-4 border-r border-gray-800 transition-colors duration-200 ${isDragging ? 'bg-indigo-900/20 border-2 border-dashed border-indigo-500/50' : ''}`}
           style={{ width: `${leftPanelWidth}%` }}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
         >
-          <header className="flex justify-between items-center mb-6">
-            <h1 className="text-xl font-bold flex items-center gap-2">
+          <header className="flex justify-between items-center mb-3">
+            <h1 className="text-base font-bold flex items-center gap-2">
               <Sparkles className="text-yellow-400" />
               <span>Reels Subtitle Generator</span>
             </h1>
@@ -381,8 +381,8 @@ function AppContent() {
               {/* Language selector */}
               <LanguageSelector value={language} onChange={setLanguage} />
 
-              <label className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg cursor-pointer transition-all font-medium text-sm">
-                {loading ? <Loader2 className="animate-spin" size={18} /> : <Upload size={18} />}
+              <label className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 rounded-lg cursor-pointer transition-all font-medium text-sm">
+                {loading ? <Loader2 className="animate-spin" size={16} /> : <Upload size={16} />}
                 <span>{loading ? loadingMessage : (isDragging ? "Drop Video Here" : "Upload Video")}</span>
                 <input
                   type="file"
@@ -397,9 +397,9 @@ function AppContent() {
                 <button
                   onClick={generateSubtitles}
                   disabled={loading || !currentFilename}
-                  className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg transition-all font-bold text-sm shadow-lg shadow-purple-500/20 disabled:opacity-50"
+                  className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 px-3 py-1.5 rounded-lg transition-all font-medium text-sm shadow-lg shadow-purple-500/20 disabled:opacity-50"
                 >
-                  {loading ? <Loader2 className="animate-spin" size={18} /> : <Wand2 size={18} />}
+                  {loading ? <Loader2 className="animate-spin" size={16} /> : <Wand2 size={16} />}
                   <span>{loading ? loadingMessage : 'Generate Subtitles'}</span>
                 </button>
               )}
@@ -408,9 +408,9 @@ function AppContent() {
                 <button
                   onClick={handleExport}
                   disabled={loading || subtitles.length === 0}
-                  className="flex items-center gap-2 bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg transition-all font-bold text-sm shadow-lg shadow-green-500/20 disabled:opacity-50"
+                  className="flex items-center gap-2 bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded-lg transition-all font-medium text-sm shadow-lg shadow-green-500/20 disabled:opacity-50"
                 >
-                  {loading ? <Loader2 className="animate-spin" size={18} /> : <Upload size={18} className="rotate-180" />}
+                  {loading ? <Loader2 className="animate-spin" size={16} /> : <Upload size={16} className="rotate-180" />}
                   <span>Export MP4</span>
                 </button>
               )}

@@ -148,7 +148,7 @@ const SubtitleList = ({ subtitles, currentTime, onSeek, onUpdateSubtitle }) => {
                 </div>
             )}
 
-            <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
+            <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2">
                 {subtitles.map((sub, index) => {
                     const isActive = currentTime >= sub.start && currentTime <= sub.end;
                     const isEditing = editingId === index;
@@ -159,7 +159,7 @@ const SubtitleList = ({ subtitles, currentTime, onSeek, onUpdateSubtitle }) => {
                             key={index}
                             ref={isActive ? activeRef : null}
                             className={cn(
-                                "subtitle-item group relative p-3 rounded-lg border",
+                                "subtitle-item group relative p-2 rounded-lg border",
                                 isActive
                                     ? "bg-indigo-900/30 border-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.2)]"
                                     : "bg-gray-800 border-gray-700 hover:border-gray-600"
