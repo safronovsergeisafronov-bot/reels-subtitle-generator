@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import VideoPlayer from './components/VideoPlayer';
 import SubtitleList from './components/SubtitleList';
 import StylePanel from './components/StylePanel';
@@ -10,7 +11,7 @@ import LanguageSelector from './components/LanguageSelector';
 import { ToastProvider, useToast } from './components/Toast';
 import { useHistory } from './hooks/useHistory';
 import { useAutoSave, loadAutoSave } from './hooks/useAutoSave';
-import { Upload, Loader2, Sparkles, Type, List, Undo2, Redo2, Wand2, Monitor, GripHorizontal } from 'lucide-react';
+import { Upload, Loader2, Sparkles, Type, List, Undo2, Redo2, Wand2, Monitor, GripHorizontal, Save, User } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
 const _rawWsUrl = import.meta.env.VITE_WS_URL || "ws://127.0.0.1:8000";
@@ -18,6 +19,10 @@ const WS_URL = _rawWsUrl.replace(/^https:\/\//, "wss://").replace(/^http:\/\//, 
 
 function AppContent() {
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [projectId, setProjectId] = useState(null);
+  const [projectName, setProjectName] = useState('');
+  const [savingProject, setSavingProject] = useState(false);
 
   const [videoSrc, setVideoSrc] = useState(null);
   const [currentFilename, setCurrentFilename] = useState(null);
@@ -84,6 +89,70 @@ function AppContent() {
   // Auto-save subtitles and styles
   useAutoSave('subtitle-data', subtitles.length > 0 ? { subtitles, filename: currentFilename } : null);
   useAutoSave('subtitle-styles', subtitleStyles);
+
+  // Load project from URL param (?project=id)
+  useEffect(() => {
+    const pid = searchParams.get('project');
+    if (!pid) return;
+    const loadProject = async () => {
+      try {
+        const res = await fetch(`${API_URL.replace('/api', '')}/api/projects/${pid}`);
+        if (!res.ok) return;
+        const project = await res.json();
+        setProjectId(project.id);
+        setProjectName(project.name);
+        if (project.subtitles?.length) setSubtitles(project.subtitles);
+        if (project.styles && Object.keys(project.styles).length) {
+          setSubtitleStyles(prev => ({ ...prev, ...project.styles }));
+        }
+        if (project.language) setLanguage(project.language);
+        if (project.video_filename) setCurrentFilename(project.video_filename);
+        toast({ type: 'success', message: `Проект "${project.name}" загружен` });
+      } catch (err) {
+        console.error('Failed to load project:', err);
+      }
+    };
+    loadProject();
+  }, []);
+
+  // Save project to backend
+  const handleSaveProject = async () => {
+    if (subtitles.length === 0) {
+      toast({ type: 'error', message: 'Нет субтитров для сохранения' });
+      return;
+    }
+    const name = projectName || prompt('Название проекта:', currentFilename || 'Новый проект');
+    if (!name) return;
+    setSavingProject(true);
+    try {
+      const res = await fetch(`${API_URL.replace('/api', '')}/api/projects`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: projectId || undefined,
+          name,
+          video_filename: currentFilename,
+          subtitles,
+          styles: subtitleStyles,
+          language: language === 'auto' ? null : language,
+          duration,
+          width: videoDimensions.width,
+          height: videoDimensions.height,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setProjectId(data.id);
+        setProjectName(name);
+        toast({ type: 'success', message: 'Проект сохранён' });
+      }
+    } catch (err) {
+      console.error('Failed to save project:', err);
+      toast({ type: 'error', message: 'Ошибка сохранения проекта' });
+    } finally {
+      setSavingProject(false);
+    }
+  };
 
   // Fetch fonts and inject into document (once)
   useEffect(() => {
@@ -484,6 +553,27 @@ function AppContent() {
                   <span>Export MP4</span>
                 </button>
               )}
+
+              {subtitles.length > 0 && (
+                <button
+                  onClick={handleSaveProject}
+                  disabled={savingProject}
+                  className="flex items-center gap-1.5 bg-cyan-600 hover:bg-cyan-700 px-2.5 py-1 rounded-lg transition-all font-medium text-xs shadow-lg shadow-cyan-500/20 disabled:opacity-50 whitespace-nowrap"
+                  title="Сохранить проект"
+                >
+                  <Save size={14} />
+                  <span>{savingProject ? 'Saving...' : (projectId ? 'Сохранить' : 'Сохранить проект')}</span>
+                </button>
+              )}
+
+              <Link
+                to="/cabinet"
+                className="flex items-center gap-1.5 bg-gray-800 hover:bg-gray-700 px-2.5 py-1 rounded-lg transition-all font-medium text-xs whitespace-nowrap border border-gray-700"
+                title="Личный кабинет"
+              >
+                <User size={14} />
+                <span>Кабинет</span>
+              </Link>
             </div>
           </header>
 

@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, field_validator
 
 from core.asr import transcribe_audio
+from core.database import init_db, save_project, get_projects, get_project, delete_project, get_all_settings, set_setting
 from core.export import burn_subtitles_async, generate_ass_content, get_video_info
 from core.fonts import get_available_fonts, get_font_path
 from core.segmentation import segment_subtitles
@@ -78,6 +79,8 @@ async def cleanup_old_files():
 async def lifespan(app: FastAPI):
     cleanup_task = asyncio.create_task(cleanup_old_files())
     logger.info("Started background file cleanup task")
+    await init_db()
+    logger.info("Database initialized")
     yield
     cleanup_task.cancel()
 
@@ -184,6 +187,22 @@ class ProcessRequest(BaseModel):
             if len(v) < 2 or len(v) > 3:
                 raise ValueError("Language must be an ISO 639-1 code (e.g. 'en', 'ru', 'es')")
         return v
+
+
+class SaveProjectRequest(BaseModel):
+    id: Optional[str] = None
+    name: str
+    video_filename: Optional[str] = None
+    subtitles: List[SubtitleItem] = []
+    styles: Optional[SubtitleStyles] = None
+    language: Optional[str] = None
+    duration: float = 0
+    width: int = 1080
+    height: int = 1920
+
+
+class UpdateSettingsRequest(BaseModel):
+    settings: dict
 
 
 # ---------------------------------------------------------------------------
@@ -415,6 +434,51 @@ async def download_video(filename: str):
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(path, filename="reels_subtitles.mp4", media_type="video/mp4")
+
+# ---------------------------------------------------------------------------
+# Projects API
+# ---------------------------------------------------------------------------
+@app.post("/api/projects")
+async def create_or_update_project(request: SaveProjectRequest):
+    project_id = request.id or str(uuid.uuid4())
+    subtitles_dicts = [s.model_dump() for s in request.subtitles] if request.subtitles else []
+    styles_dict = request.styles.model_dump() if request.styles else {}
+    await save_project(
+        project_id, request.name, request.video_filename,
+        subtitles_dicts, styles_dict, request.language,
+        request.duration, request.width, request.height
+    )
+    logger.info("Saved project: %s (%s)", project_id, request.name)
+    return {"id": project_id, "status": "saved"}
+
+@app.get("/api/projects")
+async def list_projects(limit: int = 50, offset: int = 0):
+    return await get_projects(limit, offset)
+
+@app.get("/api/projects/{project_id}")
+async def get_project_by_id(project_id: str):
+    project = await get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+@app.delete("/api/projects/{project_id}")
+async def delete_project_by_id(project_id: str):
+    await delete_project(project_id)
+    return {"status": "deleted"}
+
+# ---------------------------------------------------------------------------
+# Settings API
+# ---------------------------------------------------------------------------
+@app.get("/api/settings")
+async def get_settings():
+    return await get_all_settings()
+
+@app.put("/api/settings")
+async def update_settings(request: UpdateSettingsRequest):
+    for key, value in request.settings.items():
+        await set_setting(key, value)
+    return {"status": "updated"}
 
 # ---------------------------------------------------------------------------
 # Entry point
