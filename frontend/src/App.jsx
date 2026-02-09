@@ -10,7 +10,7 @@ import LanguageSelector from './components/LanguageSelector';
 import { ToastProvider, useToast } from './components/Toast';
 import { useHistory } from './hooks/useHistory';
 import { useAutoSave, loadAutoSave } from './hooks/useAutoSave';
-import { Upload, Loader2, Sparkles, Type, List, Undo2, Redo2, Wand2, Monitor } from 'lucide-react';
+import { Upload, Loader2, Sparkles, Type, List, Undo2, Redo2, Wand2, Monitor, GripHorizontal } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
 const _rawWsUrl = import.meta.env.VITE_WS_URL || "ws://127.0.0.1:8000";
@@ -34,8 +34,11 @@ function AppContent() {
   const [exportTaskId, setExportTaskId] = useState(null);
   const [language, setLanguage] = useState('auto');
   const videoRef = useRef(null);
+  const leftPanelRef = useRef(null);
   const [videoDimensions, setVideoDimensions] = useState({ width: 1080, height: 1920 });
   const [videoContainerWidth, setVideoContainerWidth] = useState(null);
+  const [timelineHeight, setTimelineHeight] = useState(144);
+  const [isResizingTimeline, setIsResizingTimeline] = useState(false);
 
   // Video controls state
   const [playbackRate, setPlaybackRate] = useState(1);
@@ -235,6 +238,26 @@ function AppContent() {
     };
   }, [isResizing]);
 
+  // Timeline vertical resize
+  useEffect(() => {
+    if (!isResizingTimeline) return;
+    const handleMouseMove = (e) => {
+      const panel = leftPanelRef.current;
+      if (!panel) return;
+      const rect = panel.getBoundingClientRect();
+      const newHeight = rect.bottom - e.clientY;
+      setTimelineHeight(Math.max(80, Math.min(500, newHeight)));
+    };
+    const handleMouseUp = () => setIsResizingTimeline(false);
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizingTimeline]);
+
   // Drag-and-drop
   const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
   const handleDragLeave = (e) => {
@@ -292,7 +315,10 @@ function AppContent() {
           language: language === 'auto' ? null : language,
         }),
       });
-      if (!processRes.ok) throw new Error("Processing failed");
+      if (!processRes.ok) {
+        const errData = await processRes.json().catch(() => ({}));
+        throw new Error(errData.detail || `Processing failed (${processRes.status})`);
+      }
       const { task_id } = await processRes.json();
 
       await new Promise((resolve, reject) => {
@@ -403,9 +429,10 @@ function AppContent() {
         wsUrl={WS_URL}
         onCancel={() => { setIsExporting(false); setExportTaskId(null); }}
       />
-      <div className="flex h-screen bg-gray-950 text-white overflow-hidden font-sans">
+      <div className={`flex h-screen bg-gray-950 text-white overflow-hidden font-sans ${isResizing || isResizingTimeline ? 'select-none' : ''}`}>
         {/* Left Panel - Video & Timeline */}
         <div
+          ref={leftPanelRef}
           className={`flex flex-col p-4 border-r border-gray-800 transition-colors duration-200 ${isDragging ? 'bg-indigo-900/20 border-2 border-dashed border-indigo-500/50' : ''}`}
           style={{ width: `${leftPanelWidth}%` }}
           onDragOver={handleDragOver}
@@ -458,12 +485,13 @@ function AppContent() {
             </div>
           </header>
 
-          <div className="flex-1 flex items-center justify-center bg-gray-950 rounded-2xl border border-gray-950 relative group overflow-hidden">
+          <div className="flex-1 flex items-center justify-center bg-gray-950 rounded-2xl border border-gray-950 relative group overflow-hidden min-h-0">
             <VideoPlayer
               ref={videoRef}
               src={videoSrc}
               onTimeUpdate={handleTimeUpdate}
               onLoadedMetadata={handleLoadedMetadata}
+              videoDimensions={videoDimensions}
             >
               {videoSrc && (
                 <div
@@ -563,14 +591,24 @@ function AppContent() {
             />
           )}
 
+          {/* Timeline resize handle */}
+          <div
+            className={`h-2 flex items-center justify-center cursor-row-resize group shrink-0 ${isResizingTimeline ? 'bg-indigo-500/20' : 'hover:bg-gray-800/50'}`}
+            onMouseDown={() => setIsResizingTimeline(true)}
+          >
+            <GripHorizontal size={14} className="text-gray-700 group-hover:text-indigo-400 transition-colors" />
+          </div>
+
           {/* Timeline */}
-          <Timeline
-            subtitles={subtitles}
-            currentTime={currentTime}
-            duration={duration}
-            onUpdateSubtitles={setSubtitles}
-            onSeek={handleSeek}
-          />
+          <div style={{ height: timelineHeight, flexShrink: 0 }}>
+            <Timeline
+              subtitles={subtitles}
+              currentTime={currentTime}
+              duration={duration}
+              onUpdateSubtitles={setSubtitles}
+              onSeek={handleSeek}
+            />
+          </div>
         </div>
 
         {/* Resize Handle */}

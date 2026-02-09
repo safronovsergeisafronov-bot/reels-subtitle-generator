@@ -5,7 +5,13 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
     const playheadRef = useRef(null);
     const dragTimeRef = useRef(null);
     const rafRef = useRef(null);
+    const currentTimeRef = useRef(currentTime);
+    const ppsRef = useRef(50);
     const [pixelsPerSecond, setPixelsPerSecond] = useState(50);
+
+    // Keep refs in sync for non-React event handlers
+    useEffect(() => { currentTimeRef.current = currentTime; }, [currentTime]);
+    useEffect(() => { ppsRef.current = pixelsPerSecond; }, [pixelsPerSecond]);
     const SNAP_THRESHOLD = 0.15; // seconds
     const [dragging, setDragging] = useState(null);
     const [clipboard, setClipboard] = useState(null);
@@ -192,7 +198,7 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
         };
     }, [isDraggingPlayhead, duration, pixelsPerSecond, onSeek, subtitles]);
 
-    // Cmd/Ctrl + scroll wheel zoom
+    // Cmd/Ctrl + scroll wheel zoom — centered on playhead position
     useEffect(() => {
         const el = timelineRef.current;
         if (!el) return;
@@ -200,9 +206,21 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
         const handleWheel = (e) => {
             if (e.metaKey || e.ctrlKey) {
                 e.preventDefault();
-                setPixelsPerSecond(prev => {
-                    const delta = e.deltaY > 0 ? -5 : 5;
-                    return Math.max(20, Math.min(200, prev + delta));
+                const oldPps = ppsRef.current;
+                const ct = currentTimeRef.current;
+                const delta = e.deltaY > 0 ? -5 : 5;
+                const newPps = Math.max(20, Math.min(200, oldPps + delta));
+                if (newPps === oldPps) return;
+
+                // Remember playhead's viewport-relative position before zoom
+                const playheadViewportX = ct * oldPps - el.scrollLeft;
+
+                setPixelsPerSecond(newPps);
+                ppsRef.current = newPps;
+
+                // After render, adjust scroll so playhead stays at same viewport position
+                requestAnimationFrame(() => {
+                    el.scrollLeft = ct * newPps - playheadViewportX;
                 });
             }
         };
@@ -256,7 +274,7 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
         : (currentTime || 0) * pixelsPerSecond - 7;
 
     return (
-        <div className="bg-gray-950 border-t border-gray-800 h-36 flex flex-col overflow-hidden">
+        <div className="bg-gray-950 border-t border-gray-800 h-full flex flex-col overflow-hidden">
             <div className="flex justify-between items-center px-4 py-2 border-b border-gray-800 bg-gray-900/50">
                 <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Timeline</span>
                 <div className="flex items-center gap-4">
