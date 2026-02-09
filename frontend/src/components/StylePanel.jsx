@@ -36,6 +36,11 @@ const StylePanel = ({ styles, onUpdateStyles, fontList, onApplyPreset }) => {
             textColor: preset.color,
             uppercase: preset.uppercase,
         };
+        if (preset.outlineWidth !== undefined) mapped.outlineWidth = preset.outlineWidth;
+        if (preset.outlineColor !== undefined) mapped.outlineColor = preset.outlineColor;
+        if (preset.shadowDepth !== undefined) mapped.shadowDepth = preset.shadowDepth;
+        if (preset.bold !== undefined) mapped.bold = preset.bold;
+        if (preset.position) mapped.position = preset.position;
         if (onApplyPreset) {
             onApplyPreset(mapped);
         } else {
@@ -120,8 +125,8 @@ const StylePanel = ({ styles, onUpdateStyles, fontList, onApplyPreset }) => {
                     <label className="text-xs text-gray-400 block mb-2">FONT SIZE ({styles.fontSize}px)</label>
                     <input
                         type="range"
-                        min="12"
-                        max="80"
+                        min="20"
+                        max="200"
                         value={styles.fontSize}
                         onChange={(e) => onUpdateStyles({ ...styles, fontSize: parseInt(e.target.value) })}
                         className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
@@ -150,6 +155,68 @@ const StylePanel = ({ styles, onUpdateStyles, fontList, onApplyPreset }) => {
                     >
                         {styles.uppercase ? 'ON' : 'OFF'}
                     </button>
+                </div>
+
+                <div className="mb-4">
+                    <label className="text-xs text-gray-400 block mb-2">POSITION</label>
+                    <div className="flex gap-3">
+                        <div className="flex-1">
+                            <label className="text-[10px] text-gray-500 block mb-1">X %</label>
+                            <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="0.1"
+                                value={styles.position?.x ?? 50}
+                                onChange={(e) => onUpdateStyles({
+                                    ...styles,
+                                    position: { ...styles.position, x: parseFloat(e.target.value) || 0 }
+                                })}
+                                className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm"
+                            />
+                        </div>
+                        <div className="flex-1">
+                            <label className="text-[10px] text-gray-500 block mb-1">Y %</label>
+                            <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="0.1"
+                                value={styles.position?.y ?? 80}
+                                onChange={(e) => onUpdateStyles({
+                                    ...styles,
+                                    position: { ...styles.position, y: parseFloat(e.target.value) || 0 }
+                                })}
+                                className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm"
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="mb-4">
+                    <label className="text-xs text-gray-400 block mb-2">OUTLINE ({styles.outlineWidth ?? 2})</label>
+                    <input
+                        type="range"
+                        min="0"
+                        max="10"
+                        step="0.5"
+                        value={styles.outlineWidth ?? 2}
+                        onChange={(e) => onUpdateStyles({ ...styles, outlineWidth: parseFloat(e.target.value) })}
+                        className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                    />
+                </div>
+
+                <div className="mb-4">
+                    <label className="text-xs text-gray-400 block mb-2">SHADOW ({styles.shadowDepth ?? 2})</label>
+                    <input
+                        type="range"
+                        min="0"
+                        max="10"
+                        step="0.5"
+                        value={styles.shadowDepth ?? 2}
+                        onChange={(e) => onUpdateStyles({ ...styles, shadowDepth: parseFloat(e.target.value) })}
+                        className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                    />
                 </div>
             </div>
 

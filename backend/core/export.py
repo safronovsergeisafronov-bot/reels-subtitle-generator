@@ -30,6 +30,14 @@ def generate_ass_content(subtitles: List[Dict], styles: Dict, video_width: int, 
     # ASS uses BGR hex format: &Hbbggrr&
     bgr_color = f"&H{text_color[4:6]}{text_color[2:4]}{text_color[0:2]}&"
 
+    # Outline color (hex RGB -> BGR)
+    outline_hex = styles.get("outlineColor", "#000000").lstrip('#')
+    bgr_outline_color = f"&H{outline_hex[4:6]}{outline_hex[2:4]}{outline_hex[0:2]}&"
+
+    outline_width = styles.get("outlineWidth", 2.0)
+    shadow_depth = styles.get("shadowDepth", 2.0)
+    bold_val = -1 if styles.get("bold", True) else 0
+
     # Calculate position (percentage to pixels)
     pos_x = int((styles["position"]["x"] / 100) * video_width)
     pos_y = int((styles["position"]["y"] / 100) * video_height)
@@ -44,7 +52,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,{font_name},{font_size},{bgr_color},&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,2,2,2,10,10,10,1
+Style: Default,{font_name},{font_size},{bgr_color},&H000000FF,{bgr_outline_color},&H80000000,{bold_val},0,0,0,100,100,0,0,1,{outline_width},{shadow_depth},2,10,10,10,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text

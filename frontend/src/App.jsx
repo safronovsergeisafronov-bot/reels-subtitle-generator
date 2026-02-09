@@ -34,6 +34,8 @@ function AppContent() {
   const [exportTaskId, setExportTaskId] = useState(null);
   const [language, setLanguage] = useState('auto');
   const videoRef = useRef(null);
+  const [videoDimensions, setVideoDimensions] = useState({ width: 1080, height: 1920 });
+  const [videoContainerWidth, setVideoContainerWidth] = useState(null);
 
   // Video controls state
   const [playbackRate, setPlaybackRate] = useState(1);
@@ -47,13 +49,25 @@ function AppContent() {
   const [fonts, setFonts] = useState([]);
   const [subtitleStyles, setSubtitleStyles] = useState(() => {
     const saved = loadAutoSave('subtitle-styles');
-    return saved || {
+    const defaults = {
       fontFamily: "Inter",
-      fontSize: 28,
+      fontSize: 80,
       textColor: "#FFFFFF",
       uppercase: false,
-      position: { x: 50, y: 80 }
+      position: { x: 50, y: 80 },
+      outlineWidth: 2,
+      outlineColor: "#000000",
+      shadowDepth: 2,
+      bold: true
     };
+    // Migrate old saved values
+    if (saved) {
+      if (saved.fontSize && saved.fontSize < 20) {
+        saved.fontSize = Math.round(saved.fontSize * 3);
+      }
+      return saved;
+    }
+    return defaults;
   });
 
   // Auto-save subtitles and styles
@@ -100,6 +114,19 @@ function AppContent() {
     };
   }, [videoSrc]);
 
+  // ResizeObserver to track video container width for scaling
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setVideoContainerWidth(entry.contentRect.width);
+      }
+    });
+    observer.observe(video);
+    return () => observer.disconnect();
+  }, [videoSrc]);
+
   // Keyboard shortcuts: undo/redo, space to play/pause
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -136,7 +163,10 @@ function AppContent() {
   }, [isPlaying, canUndo, canRedo, undo, redo, toast]);
 
   const handleTimeUpdate = (e) => setCurrentTime(e.target.currentTime);
-  const handleLoadedMetadata = (e) => setDuration(e.target.duration);
+  const handleLoadedMetadata = (e) => {
+    setDuration(e.target.duration);
+    setVideoDimensions({ width: e.target.videoWidth, height: e.target.videoHeight });
+  };
 
   const handleSeek = (time) => {
     if (videoRef.current) videoRef.current.currentTime = time;
@@ -353,6 +383,10 @@ function AppContent() {
     toast({ type: 'success', message: 'Style preset applied' });
   };
 
+  const scaleFactor = videoContainerWidth && videoDimensions.width
+    ? videoContainerWidth / videoDimensions.width
+    : 1;
+
   return (
     <>
       <KeyboardShortcuts />
@@ -449,10 +483,12 @@ function AppContent() {
                           top: `${subtitleStyles.position.y}%`,
                           transform: 'translate(-50%, -50%)',
                           fontFamily: `'${subtitleStyles.fontFamily}', sans-serif`,
-                          fontSize: `${subtitleStyles.fontSize}px`,
+                          fontSize: `${subtitleStyles.fontSize * scaleFactor}px`,
                           color: subtitleStyles.textColor,
                           textTransform: subtitleStyles.uppercase ? 'uppercase' : 'none',
-                          fontWeight: 'bold',
+                          fontWeight: subtitleStyles.bold ? 'bold' : 'normal',
+                          textShadow: `${subtitleStyles.shadowDepth * scaleFactor}px ${subtitleStyles.shadowDepth * scaleFactor}px ${subtitleStyles.shadowDepth * scaleFactor}px ${subtitleStyles.outlineColor || '#000000'}`,
+                          WebkitTextStroke: `${subtitleStyles.outlineWidth * scaleFactor * 0.5}px ${subtitleStyles.outlineColor || '#000000'}`,
                           width: '80%',
                           whiteSpace: 'pre-wrap'
                         }}

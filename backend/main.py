@@ -19,6 +19,7 @@ from core.asr import transcribe_audio
 from core.export import burn_subtitles_async, generate_ass_content, get_video_info
 from core.fonts import get_available_fonts, get_font_path
 from core.segmentation import segment_subtitles
+from core.text_correction import correct_subtitles
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -150,6 +151,10 @@ class SubtitleStyles(BaseModel):
     textColor: str = "#FFFFFF"
     position: SubtitlePosition
     uppercase: bool = False
+    outlineWidth: float = 2.0
+    outlineColor: str = "#000000"
+    shadowDepth: float = 2.0
+    bold: bool = True
 
 
 class ExportRequest(BaseModel):
@@ -307,6 +312,16 @@ async def process_video(request: ProcessRequest):
             await broadcast_progress(task_id, 80, "processing")
 
             subtitles = segment_subtitles(words)
+
+            # AI text correction
+            await broadcast_progress(task_id, 85, "processing")
+            try:
+                subtitles = await loop.run_in_executor(
+                    None, correct_subtitles, subtitles, request.language
+                )
+            except Exception as e:
+                logger.warning("Text correction failed, using originals: %s", e)
+            await broadcast_progress(task_id, 95, "processing")
 
             await broadcast_progress(task_id, 100, "complete", {"subtitles": subtitles})
         except Exception as e:
