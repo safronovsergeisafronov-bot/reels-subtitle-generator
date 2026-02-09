@@ -2,15 +2,20 @@ import logging
 import os
 from typing import List, Dict, Optional
 
-import anthropic
-
 logger = logging.getLogger(__name__)
 
 _client = None
 
-def _get_client() -> anthropic.Anthropic:
+def _get_client():
     global _client
     if _client is None:
+        try:
+            import anthropic
+        except ImportError:
+            raise RuntimeError(
+                "anthropic package is not installed. "
+                "Run: pip install anthropic"
+            )
         api_key = os.environ.get("ANTHROPIC_API_KEY")
         if not api_key:
             raise RuntimeError(

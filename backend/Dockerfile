@@ -21,6 +21,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
+# Register bundled project fonts with fontconfig for FFmpeg/libass
+RUN if [ -d /app/fonts ]; then \
+    mkdir -p /usr/local/share/fonts/project && \
+    find /app/fonts -type f \( -name '*.ttf' -o -name '*.otf' \) -exec cp {} /usr/local/share/fonts/project/ \; && \
+    fc-cache -fv; \
+    fi
+
 # Create uploads directory
 RUN mkdir -p uploads
 

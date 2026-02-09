@@ -300,18 +300,19 @@ async def process_video(request: ProcessRequest):
     async def _run():
         try:
             await broadcast_progress(task_id, 0, "processing")
-
-            # Whisper transcription is CPU-bound; run in executor to avoid blocking
             loop = asyncio.get_event_loop()
+
+            logger.info("Task %s: Starting transcription for %s (language=%s)", task_id, request.filename, request.language)
             await broadcast_progress(task_id, 10, "processing")
 
             words = await loop.run_in_executor(
                 None, transcribe_audio, file_path, request.language
             )
+            logger.info("Task %s: Transcription complete, %d words extracted", task_id, len(words))
 
             await broadcast_progress(task_id, 80, "processing")
-
             subtitles = segment_subtitles(words)
+            logger.info("Task %s: Segmentation complete, %d subtitle segments", task_id, len(subtitles))
 
             # AI text correction
             await broadcast_progress(task_id, 85, "processing")
@@ -319,13 +320,15 @@ async def process_video(request: ProcessRequest):
                 subtitles = await loop.run_in_executor(
                     None, correct_subtitles, subtitles, request.language
                 )
+                logger.info("Task %s: Text correction complete", task_id)
             except Exception as e:
-                logger.warning("Text correction failed, using originals: %s", e)
+                logger.warning("Task %s: Text correction failed, using originals: %s", task_id, e)
             await broadcast_progress(task_id, 95, "processing")
 
             await broadcast_progress(task_id, 100, "complete", {"subtitles": subtitles})
+            logger.info("Task %s: Processing complete, returning %d subtitles", task_id, len(subtitles))
         except Exception as e:
-            logger.exception("Processing failed for task %s", task_id)
+            logger.exception("Task %s: Processing failed: %s", task_id, str(e))
             await broadcast_progress(task_id, 0, "error", {"detail": str(e)})
 
     asyncio.create_task(_run())

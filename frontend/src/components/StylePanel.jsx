@@ -166,11 +166,11 @@ const StylePanel = ({ styles, onUpdateStyles, fontList, onApplyPreset }) => {
                                 type="number"
                                 min="0"
                                 max="100"
-                                step="0.1"
-                                value={styles.position?.x ?? 50}
+                                step="1"
+                                value={Math.round(styles.position?.x ?? 50)}
                                 onChange={(e) => onUpdateStyles({
                                     ...styles,
-                                    position: { ...styles.position, x: parseFloat(e.target.value) || 0 }
+                                    position: { ...styles.position, x: parseInt(e.target.value) || 0 }
                                 })}
                                 className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm"
                             />
@@ -181,11 +181,11 @@ const StylePanel = ({ styles, onUpdateStyles, fontList, onApplyPreset }) => {
                                 type="number"
                                 min="0"
                                 max="100"
-                                step="0.1"
-                                value={styles.position?.y ?? 80}
+                                step="1"
+                                value={Math.round(styles.position?.y ?? 80)}
                                 onChange={(e) => onUpdateStyles({
                                     ...styles,
-                                    position: { ...styles.position, y: parseFloat(e.target.value) || 0 }
+                                    position: { ...styles.position, y: parseInt(e.target.value) || 0 }
                                 })}
                                 className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm"
                             />

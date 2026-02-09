@@ -2,12 +2,13 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 
 const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek }) => {
     const timelineRef = useRef(null);
-    const pixelsPerSecond = 50;
+    const [pixelsPerSecond, setPixelsPerSecond] = useState(50);
     const SNAP_THRESHOLD = 0.15; // seconds
     const [dragging, setDragging] = useState(null);
     const [clipboard, setClipboard] = useState(null);
     const [selectedIndex, setSelectedIndex] = useState(null);
     const [collisionIndex, setCollisionIndex] = useState(null);
+    const [isDraggingPlayhead, setIsDraggingPlayhead] = useState(false);
 
     // Snapping logic
     const getSnapPoints = (excludeIndex) => {
@@ -122,7 +123,48 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
             window.removeEventListener('mousemove', handleMouseMove);
             window.removeEventListener('mouseup', handleMouseUp);
         };
-    }, [dragging, subtitles, onUpdateSubtitles, duration]);
+    }, [dragging, subtitles, onUpdateSubtitles, duration, pixelsPerSecond]);
+
+    // Playhead drag logic
+    useEffect(() => {
+        if (!isDraggingPlayhead) return;
+
+        const handleMouseMove = (e) => {
+            if (!timelineRef.current) return;
+            const rect = timelineRef.current.getBoundingClientRect();
+            const x = e.clientX - rect.left + timelineRef.current.scrollLeft;
+            const time = Math.max(0, Math.min(duration, x / pixelsPerSecond));
+            onSeek(time);
+        };
+
+        const handleMouseUp = () => setIsDraggingPlayhead(false);
+
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [isDraggingPlayhead, duration, pixelsPerSecond, onSeek]);
+
+    // Cmd/Ctrl + scroll wheel zoom
+    useEffect(() => {
+        const el = timelineRef.current;
+        if (!el) return;
+
+        const handleWheel = (e) => {
+            if (e.metaKey || e.ctrlKey) {
+                e.preventDefault();
+                setPixelsPerSecond(prev => {
+                    const delta = e.deltaY > 0 ? -5 : 5;
+                    return Math.max(20, Math.min(200, prev + delta));
+                });
+            }
+        };
+
+        el.addEventListener('wheel', handleWheel, { passive: false });
+        return () => el.removeEventListener('wheel', handleWheel);
+    }, []);
 
     // Copy/Paste keyboard handlers
     useEffect(() => {
@@ -163,21 +205,15 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [selectedIndex, clipboard, subtitles, onUpdateSubtitles]);
 
-    const handleTimelineClick = (e) => {
-        if (!timelineRef.current || dragging) return;
-        const rect = timelineRef.current.getBoundingClientRect();
-        const x = e.clientX - rect.left + timelineRef.current.scrollLeft;
-        const time = x / pixelsPerSecond;
-        onSeek(Math.max(0, Math.min(duration, time)));
-        setSelectedIndex(null);
-    };
-
     return (
         <div className="bg-gray-950 border-t border-gray-800 h-36 flex flex-col overflow-hidden">
             <div className="flex justify-between items-center px-4 py-2 border-b border-gray-800 bg-gray-900/50">
                 <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Timeline</span>
                 <div className="flex items-center gap-4">
                     {clipboard && <span className="text-[10px] text-green-400 bg-green-900/30 px-2 py-0.5 rounded">Copied</span>}
+                    <span className="text-[10px] text-gray-500 font-mono">
+                        {Math.round(pixelsPerSecond / 50 * 100)}%
+                    </span>
                     <span className="text-[10px] text-gray-400 font-mono bg-black px-2 py-0.5 rounded border border-gray-800">
                         {currentTime.toFixed(2)}s / {duration.toFixed(2)}s
                     </span>
@@ -187,65 +223,92 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
             <div
                 ref={timelineRef}
                 className="flex-1 relative overflow-x-auto overflow-y-hidden select-none custom-scrollbar"
-                onClick={handleTimelineClick}
+                onMouseDown={(e) => {
+                    // Only respond to clicks on the timeline background, not subtitle blocks
+                    if (e.target !== e.currentTarget && !e.target.classList.contains('timeline-bg')) return;
+                    if (!timelineRef.current) return;
+                    const rect = timelineRef.current.getBoundingClientRect();
+                    const x = e.clientX - rect.left + timelineRef.current.scrollLeft;
+                    const time = Math.max(0, Math.min(duration, x / pixelsPerSecond));
+                    onSeek(time);
+                    setIsDraggingPlayhead(true);
+                    setSelectedIndex(null);
+                }}
                 style={{ cursor: 'crosshair' }}
             >
                 {/* Time Markers */}
-                <div className="absolute top-0 left-0 h-6 flex border-b border-gray-800" style={{ width: Math.max(window.innerWidth, (duration || 0) * pixelsPerSecond) }}>
+                <div className="absolute top-0 left-0 h-6 flex border-b border-gray-800 timeline-bg" style={{ width: Math.max(window.innerWidth, (duration || 0) * pixelsPerSecond) }}>
                     {Array.from({ length: Math.ceil(duration || 0) + 1 }).map((_, i) => (
                         <div
                             key={i}
-                            className="absolute border-l border-gray-800 h-full text-[9px] text-gray-600 pl-1 pt-1"
+                            className="absolute border-l border-gray-800/60 h-full text-[9px] text-gray-600 pl-1 pt-1 timeline-bg"
                             style={{ left: i * pixelsPerSecond }}
                         >
                             {i}s
                         </div>
                     ))}
+                    {/* Minor tick marks */}
+                    {Array.from({ length: Math.ceil(duration || 0) * 2 + 1 }).map((_, i) => {
+                        if (i % 2 === 0) return null;
+                        return (
+                            <div
+                                key={`minor-${i}`}
+                                className="absolute w-px h-2 bg-gray-800/40 bottom-0 timeline-bg"
+                                style={{ left: (i * 0.5) * pixelsPerSecond }}
+                            />
+                        );
+                    })}
                 </div>
 
                 {/* Subtitle Track */}
-                <div className="absolute top-10 left-0 h-16 w-full flex items-center bg-gray-900/20">
+                <div className="absolute top-10 left-0 h-16 w-full flex items-center bg-gray-900/20 timeline-bg">
                     {(subtitles || []).map((sub, index) => (
                         <div
                             key={index}
-                            className={`absolute h-10 rounded border transition-all group ${
-                                collisionIndex === index
-                                    ? 'collision-flash'
-                                    : ''
-                            } ${selectedIndex === index
-                                    ? 'bg-cyan-600/60 border-cyan-400 text-white z-20 ring-2 ring-cyan-400 shadow-[0_0_20px_rgba(0,255,255,0.3)]'
+                            className={`absolute h-10 rounded-lg transition-all duration-200 group
+                                ${collisionIndex === index ? 'animate-pulse ring-2 ring-red-500' : ''}
+                                ${selectedIndex === index
+                                    ? 'bg-gradient-to-r from-blue-600/80 to-cyan-600/80 border border-cyan-400/60 text-white z-20 shadow-lg shadow-cyan-500/20'
                                     : currentTime >= sub.start && currentTime <= sub.end
-                                        ? 'bg-indigo-600/60 border-indigo-400 text-white z-10 shadow-[0_0_15px_rgba(79,70,229,0.3)]'
-                                        : 'bg-gray-800/40 border-gray-700/50 text-gray-500 opacity-80'
-                                } flex flex-col items-center justify-center text-[10px] px-2 truncate overflow-hidden cursor-move hover:ring-2 hover:ring-indigo-500/50`}
+                                        ? 'bg-gradient-to-r from-violet-600/70 to-purple-600/70 border border-violet-400/40 text-white z-10 shadow-md shadow-violet-500/15'
+                                        : 'bg-gray-800/60 border border-gray-700/40 text-gray-400 hover:bg-gray-700/60 hover:border-gray-600/50 hover:text-gray-300'
+                                } flex flex-col items-center justify-center text-[10px] px-2 truncate overflow-hidden cursor-move`}
                             style={{
                                 left: sub.start * pixelsPerSecond,
                                 width: (sub.end - sub.start) * pixelsPerSecond,
                             }}
                             onMouseDown={(e) => handleMouseDown(index, 'move', e)}
                         >
-                            {/* Resize Handles */}
+                            {/* Left resize handle */}
                             <div
-                                className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize bg-indigo-400/0 hover:bg-indigo-400/50 opacity-0 group-hover:opacity-100 transition-opacity z-20"
+                                className="absolute left-0 top-0 bottom-0 w-1.5 cursor-ew-resize rounded-l-lg
+                                    bg-white/0 hover:bg-white/30 group-hover:bg-white/10 transition-all duration-150 z-20"
                                 onMouseDown={(e) => handleMouseDown(index, 'start', e)}
                             />
+                            {/* Right resize handle */}
                             <div
-                                className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize bg-indigo-400/0 hover:bg-indigo-400/50 opacity-0 group-hover:opacity-100 transition-opacity z-20"
+                                className="absolute right-0 top-0 bottom-0 w-1.5 cursor-ew-resize rounded-r-lg
+                                    bg-white/0 hover:bg-white/30 group-hover:bg-white/10 transition-all duration-150 z-20"
                                 onMouseDown={(e) => handleMouseDown(index, 'end', e)}
                             />
 
-                            <span className="truncate w-full text-center font-medium">{sub.text}</span>
-                            <span className="text-[8px] opacity-40 mt-1">{(sub.end - sub.start).toFixed(1)}s</span>
+                            <span className="truncate w-full text-center font-medium text-[10px] leading-tight">{sub.text}</span>
+                            <span className="text-[8px] opacity-50 font-mono">{(sub.end - sub.start).toFixed(1)}s</span>
                         </div>
                     ))}
                 </div>
 
                 {/* Playhead */}
                 <div
-                    className="absolute top-0 bottom-0 w-px bg-red-500 z-30 pointer-events-none"
-                    style={{ left: (currentTime || 0) * pixelsPerSecond }}
+                    className="absolute top-0 bottom-0 z-30"
+                    style={{ left: (currentTime || 0) * pixelsPerSecond - 6, width: 13, cursor: 'ew-resize' }}
+                    onMouseDown={(e) => {
+                        e.stopPropagation();
+                        setIsDraggingPlayhead(true);
+                    }}
                 >
-                    <div className="absolute -top-1 -left-1 w-2.5 h-2.5 bg-red-500 rotate-45 border border-red-400" />
+                    <div className="absolute left-[6px] top-0 bottom-0 w-px bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.5)]" />
+                    <div className="absolute left-[4px] -top-1 w-2.5 h-2.5 bg-red-500 rotate-45 border border-red-400" />
                 </div>
             </div>
         </div>
