@@ -1,0 +1,9 @@
+venv/
+__pycache__/
+*.pyc
+uploads/
+.DS_Store
+*.log
+.env
+diagnose.py
+test_segmentation.py

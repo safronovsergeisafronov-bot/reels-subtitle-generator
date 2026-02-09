@@ -1,8 +1,5 @@
 fastapi
-uvicorn
+uvicorn[standard]
 python-multipart
-openai-whisper
-torch
+openai
 numpy
-ffmpeg-python
-tiktoken

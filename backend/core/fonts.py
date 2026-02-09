@@ -1,16 +1,27 @@
 import os
 import glob
+import platform
 from typing import List, Dict
 
-SYSTEM_FONT_PATHS = [
-    "/System/Library/Fonts",
-    "/Library/Fonts",
-    os.path.expanduser("~/Library/Fonts")
-]
+if platform.system() == "Darwin":
+    SYSTEM_FONT_PATHS = [
+        "/System/Library/Fonts",
+        "/Library/Fonts",
+        os.path.expanduser("~/Library/Fonts"),
+    ]
+elif platform.system() == "Linux":
+    SYSTEM_FONT_PATHS = [
+        "/usr/share/fonts",
+        "/usr/local/share/fonts",
+    ]
+else:
+    SYSTEM_FONT_PATHS = [
+        "/usr/share/fonts",
+    ]
 
 def get_available_fonts() -> List[Dict[str, str]]:
     """
-    Scans macOS font directories and returns a list of available fonts.
+    Scans system font directories and returns a list of available fonts.
     Returns: List of dicts with 'name' (filename without extension) and 'filename'.
     """
     fonts = []

@@ -7,6 +7,7 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
     const [dragging, setDragging] = useState(null);
     const [clipboard, setClipboard] = useState(null);
     const [selectedIndex, setSelectedIndex] = useState(null);
+    const [collisionIndex, setCollisionIndex] = useState(null);
 
     // Snapping logic
     const getSnapPoints = (excludeIndex) => {
@@ -31,17 +32,26 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
         return value;
     };
 
-    // Collision detection
-    const checkCollision = (start, end, excludeIndex) => {
+    // Collision detection - returns the index of the colliding subtitle, or -1
+    const findCollision = (start, end, excludeIndex) => {
         for (let i = 0; i < subtitles.length; i++) {
             if (i === excludeIndex) continue;
             const other = subtitles[i];
-            // Overlap if: start < other.end && end > other.start
             if (start < other.end && end > other.start) {
-                return true;
+                return i;
             }
         }
-        return false;
+        return -1;
+    };
+
+    const checkCollision = (start, end, excludeIndex) => {
+        return findCollision(start, end, excludeIndex) !== -1;
+    };
+
+    // Flash collision feedback
+    const flashCollision = (index) => {
+        setCollisionIndex(index);
+        setTimeout(() => setCollisionIndex(null), 300);
     };
 
     const handleMouseDown = (index, type, e) => {
@@ -85,8 +95,10 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
                 if (newEnd <= sub.start + 0.1) newEnd = sub.start + 0.1;
             }
 
-            // Collision prevention
-            if (checkCollision(newStart, newEnd, dragging.index)) {
+            // Collision prevention with flash feedback
+            const collidingIdx = findCollision(newStart, newEnd, dragging.index);
+            if (collidingIdx !== -1) {
+                flashCollision(collidingIdx);
                 return; // Don't apply changes that cause collision
             }
 
@@ -165,7 +177,7 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
             <div className="flex justify-between items-center px-4 py-2 border-b border-gray-800 bg-gray-900/50">
                 <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Timeline</span>
                 <div className="flex items-center gap-4">
-                    {clipboard && <span className="text-[10px] text-green-400 bg-green-900/30 px-2 py-0.5 rounded">📋 Copied</span>}
+                    {clipboard && <span className="text-[10px] text-green-400 bg-green-900/30 px-2 py-0.5 rounded">Copied</span>}
                     <span className="text-[10px] text-gray-400 font-mono bg-black px-2 py-0.5 rounded border border-gray-800">
                         {currentTime.toFixed(2)}s / {duration.toFixed(2)}s
                     </span>
@@ -196,7 +208,11 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
                     {(subtitles || []).map((sub, index) => (
                         <div
                             key={index}
-                            className={`absolute h-14 rounded border transition-all group ${selectedIndex === index
+                            className={`absolute h-14 rounded border transition-all group ${
+                                collisionIndex === index
+                                    ? 'collision-flash'
+                                    : ''
+                            } ${selectedIndex === index
                                     ? 'bg-cyan-600/60 border-cyan-400 text-white z-20 ring-2 ring-cyan-400 shadow-[0_0_20px_rgba(0,255,255,0.3)]'
                                     : currentTime >= sub.start && currentTime <= sub.end
                                         ? 'bg-indigo-600/60 border-indigo-400 text-white z-10 shadow-[0_0_15px_rgba(79,70,229,0.3)]'

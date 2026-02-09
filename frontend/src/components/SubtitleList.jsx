@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Copy, Clock, Download, Edit2, Save, Check } from 'lucide-react';
+import { Copy, Clock, Download, Edit2, Save, Check, Scissors, Merge } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -31,11 +31,26 @@ function cn(...inputs) {
     return twMerge(clsx(inputs));
 }
 
+const CharCount = ({ count }) => {
+    let colorClass = 'text-gray-600';
+    if (count > 30) {
+        colorClass = 'text-red-400';
+    } else if (count > 20) {
+        colorClass = 'text-yellow-400';
+    }
+    return (
+        <span className={`text-[10px] ${colorClass}`}>
+            {count} chars
+        </span>
+    );
+};
+
 const SubtitleList = ({ subtitles, currentTime, onSeek, onUpdateSubtitle }) => {
     const activeRef = useRef(null);
     const [editingId, setEditingId] = useState(null);
     const [editText, setEditText] = useState("");
     const [copiedId, setCopiedId] = useState(null);
+    const textareaRef = useRef(null);
 
     // Auto-scroll to active subtitle
     useEffect(() => {
@@ -60,6 +75,49 @@ const SubtitleList = ({ subtitles, currentTime, onSeek, onUpdateSubtitle }) => {
         updated[index].text = editText;
         onUpdateSubtitle(updated);
         setEditingId(null);
+    };
+
+    const handleSplit = (index) => {
+        const sub = subtitles[index];
+        const text = sub.text;
+        // Use cursor position from textarea if editing, otherwise split at middle
+        let splitPos = Math.floor(text.length / 2);
+        if (editingId === index && textareaRef.current) {
+            splitPos = textareaRef.current.selectionStart || splitPos;
+        }
+
+        if (splitPos <= 0 || splitPos >= text.length) return;
+
+        const midTime = (sub.start + sub.end) / 2;
+        const firstHalf = {
+            ...sub,
+            text: text.slice(0, splitPos).trim(),
+            end: midTime,
+        };
+        const secondHalf = {
+            ...sub,
+            text: text.slice(splitPos).trim(),
+            start: midTime,
+        };
+
+        const updated = [...subtitles];
+        updated.splice(index, 1, firstHalf, secondHalf);
+        onUpdateSubtitle(updated);
+        setEditingId(null);
+    };
+
+    const handleMerge = (index) => {
+        if (index >= subtitles.length - 1) return;
+        const current = subtitles[index];
+        const next = subtitles[index + 1];
+        const merged = {
+            ...current,
+            text: current.text + ' ' + next.text,
+            end: next.end,
+        };
+        const updated = [...subtitles];
+        updated.splice(index, 2, merged);
+        onUpdateSubtitle(updated);
     };
 
     const handleDownloadSRT = () => {
@@ -101,7 +159,7 @@ const SubtitleList = ({ subtitles, currentTime, onSeek, onUpdateSubtitle }) => {
                             key={index}
                             ref={isActive ? activeRef : null}
                             className={cn(
-                                "group relative p-3 rounded-lg border transition-all duration-200",
+                                "subtitle-item group relative p-3 rounded-lg border",
                                 isActive
                                     ? "bg-indigo-900/30 border-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.2)]"
                                     : "bg-gray-800 border-gray-700 hover:border-gray-600"
@@ -137,26 +195,38 @@ const SubtitleList = ({ subtitles, currentTime, onSeek, onUpdateSubtitle }) => {
                             {isEditing ? (
                                 <div className="space-y-2">
                                     <textarea
+                                        ref={textareaRef}
                                         className="w-full bg-gray-900/50 border border-gray-600 rounded p-2 text-sm text-white resize-none outline-none focus:border-indigo-500 transition-colors"
                                         rows={3}
                                         value={editText}
                                         onChange={(e) => setEditText(e.target.value)}
                                         autoFocus
                                     />
-                                    <div className="flex justify-end gap-2">
-                                        <button
-                                            onClick={() => setEditingId(null)}
-                                            className="flex items-center gap-1 bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-xs font-medium transition-colors"
-                                        >
-                                            Cancel
-                                        </button>
-                                        <button
-                                            onClick={() => handleSave(index)}
-                                            className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs font-medium transition-colors"
-                                        >
-                                            <Save size={12} />
-                                            Save
-                                        </button>
+                                    <div className="flex justify-between items-center">
+                                        <CharCount count={editText.length} />
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => handleSplit(index)}
+                                                className="flex items-center gap-1 bg-amber-600 hover:bg-amber-700 text-white px-2 py-1 rounded text-xs font-medium transition-colors"
+                                                title="Split subtitle at cursor position"
+                                            >
+                                                <Scissors size={12} />
+                                                Split
+                                            </button>
+                                            <button
+                                                onClick={() => setEditingId(null)}
+                                                className="flex items-center gap-1 bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-xs font-medium transition-colors"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                onClick={() => handleSave(index)}
+                                                className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs font-medium transition-colors"
+                                            >
+                                                <Save size={12} />
+                                                Save
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             ) : (
@@ -168,16 +238,34 @@ const SubtitleList = ({ subtitles, currentTime, onSeek, onUpdateSubtitle }) => {
                                         {sub.text}
                                     </p>
                                     <div className="flex justify-between items-end">
-                                        <button
-                                            onClick={() => handleEditStart(index, sub.text)}
-                                            className="flex items-center gap-1 text-gray-500 hover:text-indigo-400 text-xs transition-colors px-2 py-1 rounded hover:bg-gray-700/50"
-                                        >
-                                            <Edit2 size={12} />
-                                            Edit
-                                        </button>
-                                        <div className="text-[10px] text-gray-600">
-                                            {sub.text.length} chars
+                                        <div className="flex items-center gap-1">
+                                            <button
+                                                onClick={() => handleEditStart(index, sub.text)}
+                                                className="flex items-center gap-1 text-gray-500 hover:text-indigo-400 text-xs transition-colors px-2 py-1 rounded hover:bg-gray-700/50"
+                                            >
+                                                <Edit2 size={12} />
+                                                Edit
+                                            </button>
+                                            <button
+                                                onClick={() => handleSplit(index)}
+                                                className="flex items-center gap-1 text-gray-500 hover:text-amber-400 text-xs transition-colors px-2 py-1 rounded hover:bg-gray-700/50"
+                                                title="Split at middle"
+                                            >
+                                                <Scissors size={12} />
+                                                Split
+                                            </button>
+                                            {index < subtitles.length - 1 && (
+                                                <button
+                                                    onClick={() => handleMerge(index)}
+                                                    className="flex items-center gap-1 text-gray-500 hover:text-cyan-400 text-xs transition-colors px-2 py-1 rounded hover:bg-gray-700/50"
+                                                    title="Merge with next subtitle"
+                                                >
+                                                    <Merge size={12} />
+                                                    Merge
+                                                </button>
+                                            )}
                                         </div>
+                                        <CharCount count={sub.text.length} />
                                     </div>
                                 </div>
                             )}

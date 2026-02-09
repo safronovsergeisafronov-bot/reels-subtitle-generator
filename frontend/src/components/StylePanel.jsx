@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Type, Star, Check } from 'lucide-react';
+import { Type, Star, Check, Palette } from 'lucide-react';
+import { stylePresets } from '../data/stylePresets';
 
-const API_URL = "http://127.0.0.1:8000/api";
+const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
 
-const StylePanel = ({ styles, onUpdateStyles, fontList }) => {
+const StylePanel = ({ styles, onUpdateStyles, fontList, onApplyPreset }) => {
     const [favorites, setFavorites] = useState(() => {
         const saved = localStorage.getItem('favoriteFonts');
         return saved ? JSON.parse(saved) : [];
@@ -28,12 +29,60 @@ const StylePanel = ({ styles, onUpdateStyles, fontList }) => {
         return a.name.localeCompare(b.name);
     });
 
+    const handleApplyPreset = (preset) => {
+        const mapped = {
+            fontFamily: preset.fontFamily,
+            fontSize: preset.fontSize,
+            textColor: preset.color,
+            uppercase: preset.uppercase,
+        };
+        if (onApplyPreset) {
+            onApplyPreset(mapped);
+        } else {
+            onUpdateStyles({ ...styles, ...mapped });
+        }
+    };
+
     return (
         <div className="bg-gray-900 border-l border-gray-800 p-4 w-full flex flex-col gap-6 overflow-y-auto h-full">
             <div>
                 <h3 className="text-white font-bold mb-4 flex items-center gap-2">
                     <Type size={18} /> Style Settings
                 </h3>
+
+                {/* Presets Section */}
+                <div className="mb-6">
+                    <label className="text-xs text-gray-400 block mb-2 flex items-center gap-1">
+                        <Palette size={12} />
+                        PRESETS
+                    </label>
+                    <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
+                        {(stylePresets || []).map((preset) => (
+                            <div
+                                key={preset.name}
+                                className="flex-shrink-0 w-32 bg-zinc-800 hover:bg-zinc-700 rounded-lg p-3 cursor-pointer transition-colors border border-zinc-700 hover:border-zinc-500"
+                                onClick={() => handleApplyPreset(preset)}
+                            >
+                                <div
+                                    className="text-xs font-bold mb-1 truncate text-center"
+                                    style={{
+                                        color: preset.color || '#FFFFFF',
+                                        fontFamily: preset.fontFamily || 'inherit',
+                                        textTransform: preset.uppercase ? 'uppercase' : 'none',
+                                    }}
+                                >
+                                    {preset.preview || 'Sample'}
+                                </div>
+                                <div className="text-[10px] text-white font-medium text-center truncate">
+                                    {preset.name}
+                                </div>
+                                <div className="text-[9px] text-gray-500 text-center truncate mt-0.5">
+                                    {preset.description}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
 
                 <div className="mb-6">
                     <label className="text-xs text-gray-400 block mb-2">FONT FAMILY</label>

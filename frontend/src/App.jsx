@@ -1,62 +1,80 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import VideoPlayer from './components/VideoPlayer';
 import SubtitleList from './components/SubtitleList';
 import StylePanel from './components/StylePanel';
 import Timeline from './components/Timeline';
 import VideoControls from './components/VideoControls';
 import ExportModal from './components/ExportModal';
-import { Upload, Loader2, Sparkles, Type, List } from 'lucide-react';
+import KeyboardShortcuts from './components/KeyboardShortcuts';
+import LanguageSelector from './components/LanguageSelector';
+import { ToastProvider, useToast } from './components/Toast';
+import { useHistory } from './hooks/useHistory';
+import { useAutoSave, loadAutoSave } from './hooks/useAutoSave';
+import { Upload, Loader2, Sparkles, Type, List, Undo2, Redo2 } from 'lucide-react';
 
-// IMPORTANT: Ensure backend is running!
-// const API_URL = "http://localhost:8000/api";
-// For local dev, we assume standard localhost:8000
-const API_URL = "http://127.0.0.1:8000/api";
+const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
+const WS_URL = import.meta.env.VITE_WS_URL || "ws://127.0.0.1:8000";
 
-function App() {
+function AppContent() {
+  const { toast } = useToast();
+
   const [videoSrc, setVideoSrc] = useState(null);
   const [currentFilename, setCurrentFilename] = useState(null);
   const [duration, setDuration] = useState(0);
-  const [subtitles, setSubtitles] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('Processing...');
   const [currentTime, setCurrentTime] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
-  const [activeTab, setActiveTab] = useState('subtitles'); // 'subtitles' or 'style'
+  const [activeTab, setActiveTab] = useState('subtitles');
   const [isPlaying, setIsPlaying] = useState(false);
-  const [leftPanelWidth, setLeftPanelWidth] = useState(66.66); // 2/3 in percentage
+  const [leftPanelWidth, setLeftPanelWidth] = useState(66.66);
   const [isResizing, setIsResizing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const [exportProgress, setExportProgress] = useState(0);
+  const [exportTaskId, setExportTaskId] = useState(null);
+  const [language, setLanguage] = useState('auto');
   const videoRef = useRef(null);
 
-  // Phase 2: Styling State
+  // Video controls state
+  const [playbackRate, setPlaybackRate] = useState(1);
+  const [volume, setVolume] = useState(1);
+  const [isMuted, setIsMuted] = useState(false);
+
+  // Undo/redo for subtitles
+  const { state: subtitles, set: setSubtitles, undo, redo, canUndo, canRedo } = useHistory([]);
+
+  // Fonts & styles
   const [fonts, setFonts] = useState([]);
-  const [subtitleStyles, setSubtitleStyles] = useState({
-    fontFamily: "Inter",
-    fontSize: 28,
-    textColor: "#FFFFFF",
-    uppercase: false,
-    position: { x: 50, y: 80 } // Percentage
+  const [subtitleStyles, setSubtitleStyles] = useState(() => {
+    const saved = loadAutoSave('subtitle-styles');
+    return saved || {
+      fontFamily: "Inter",
+      fontSize: 28,
+      textColor: "#FFFFFF",
+      uppercase: false,
+      position: { x: 50, y: 80 }
+    };
   });
 
-  // Fetch fonts and inject into document
+  // Auto-save subtitles and styles
+  useAutoSave('subtitle-data', subtitles.length > 0 ? { subtitles, filename: currentFilename } : null);
+  useAutoSave('subtitle-styles', subtitleStyles);
+
+  // Fetch fonts and inject into document (once)
   useEffect(() => {
+    const existing = document.getElementById('dynamic-fonts');
+    if (existing) return;
+
     const fetchFonts = async () => {
       try {
         const res = await fetch(`${API_URL}/fonts`);
         const data = await res.json();
         setFonts(data.fonts);
 
-        // Inject @font-face rules
         const style = document.createElement('style');
         style.id = 'dynamic-fonts';
         let css = '';
         data.fonts.forEach(font => {
-          css += `
-            @font-face {
-              font-family: '${font.name}';
-              src: url('${API_URL}/font-file/${font.filename}');
-            }
-          `;
+          css += `@font-face { font-family: '${font.name}'; src: url('${API_URL}/font-file/${font.filename}'); }\n`;
         });
         style.appendChild(document.createTextNode(css));
         document.head.appendChild(style);
@@ -67,166 +85,208 @@ function App() {
     fetchFonts();
   }, []);
 
-
+  // Video play/pause event listeners
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-
     const handlePlay = () => setIsPlaying(true);
     const handlePause = () => setIsPlaying(false);
-
     video.addEventListener('play', handlePlay);
     video.addEventListener('pause', handlePause);
-
     return () => {
       video.removeEventListener('play', handlePlay);
       video.removeEventListener('pause', handlePause);
     };
   }, [videoSrc]);
 
-  const handleTimeUpdate = (e) => {
-    setCurrentTime(e.target.currentTime);
-  };
+  // Keyboard shortcuts: undo/redo, space to play/pause
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
 
-  const handleLoadedMetadata = (e) => {
-    setDuration(e.target.duration);
-  };
+      // Space: play/pause
+      if (e.key === ' ' && videoRef.current) {
+        e.preventDefault();
+        if (isPlaying) videoRef.current.pause();
+        else videoRef.current.play();
+      }
+
+      // Ctrl/Cmd + Z: undo
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        if (canUndo) {
+          undo();
+          toast({ type: 'info', message: 'Undo' });
+        }
+      }
+
+      // Ctrl/Cmd + Shift + Z: redo
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'z') {
+        e.preventDefault();
+        if (canRedo) {
+          redo();
+          toast({ type: 'info', message: 'Redo' });
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isPlaying, canUndo, canRedo, undo, redo, toast]);
+
+  const handleTimeUpdate = (e) => setCurrentTime(e.target.currentTime);
+  const handleLoadedMetadata = (e) => setDuration(e.target.duration);
 
   const handleSeek = (time) => {
-    if (videoRef.current) {
-      videoRef.current.currentTime = time;
-    }
+    if (videoRef.current) videoRef.current.currentTime = time;
   };
 
   const handlePlayPause = () => {
     if (videoRef.current) {
-      if (isPlaying) {
-        videoRef.current.pause();
-      } else {
-        videoRef.current.play();
-      }
-      setIsPlaying(!isPlaying);
+      if (isPlaying) videoRef.current.pause();
+      else videoRef.current.play();
     }
   };
 
   const handleFullscreen = () => {
     const container = document.getElementById('video-container');
     if (container) {
-      if (container.requestFullscreen) {
-        container.requestFullscreen();
-      } else if (container.webkitRequestFullscreen) {
-        container.webkitRequestFullscreen();
-      }
+      if (container.requestFullscreen) container.requestFullscreen();
+      else if (container.webkitRequestFullscreen) container.webkitRequestFullscreen();
     }
   };
 
-  const handleResizeStart = () => {
-    setIsResizing(true);
+  const handlePlaybackRateChange = (rate) => {
+    setPlaybackRate(rate);
+    if (videoRef.current) videoRef.current.playbackRate = rate;
   };
+
+  const handleVolumeChange = (val) => {
+    setVolume(val);
+    setIsMuted(val === 0);
+    if (videoRef.current) {
+      videoRef.current.volume = val;
+      videoRef.current.muted = val === 0;
+    }
+  };
+
+  const handleMuteToggle = () => {
+    const newMuted = !isMuted;
+    setIsMuted(newMuted);
+    if (videoRef.current) videoRef.current.muted = newMuted;
+  };
+
+  // Panel resize
+  const handleResizeStart = () => setIsResizing(true);
 
   useEffect(() => {
     const handleMouseMove = (e) => {
       if (!isResizing) return;
       const newWidth = (e.clientX / window.innerWidth) * 100;
-      setLeftPanelWidth(Math.max(30, Math.min(80, newWidth))); // Limit between 30% and 80%
+      setLeftPanelWidth(Math.max(30, Math.min(80, newWidth)));
     };
-
-    const handleMouseUp = () => {
-      setIsResizing(false);
-    };
+    const handleMouseUp = () => setIsResizing(false);
 
     if (isResizing) {
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
     }
-
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
   }, [isResizing]);
 
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
+  // Drag-and-drop
+  const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
   const handleDragLeave = (e) => {
     e.preventDefault();
-    if (!e.currentTarget.contains(e.relatedTarget)) {
-      setIsDragging(false);
-    }
+    if (!e.currentTarget.contains(e.relatedTarget)) setIsDragging(false);
   };
-
   const handleDrop = async (e) => {
     e.preventDefault();
     setIsDragging(false);
-
     const file = e.dataTransfer.files[0];
     if (file && (file.type === "video/mp4" || file.type === "video/quicktime")) {
-      // mock the event structure needed by handleFileUpload or call logic directly
-      // Reuse handleFileUpload logic by extracting it or just copy-pasting the relevant parts.
-      // Let's refactor handleFileUpload to accept a file directly might be cleaner, 
-      // but for minimal changes let's just do the Logic here or create a synthetic event.
-
-      // Better: extracting the logic
       processFile(file);
     }
   };
 
+  // --- Process file: upload + async transcription via WebSocket ---
   const processFile = async (file) => {
     if (!file) return;
-
     setVideoSrc(URL.createObjectURL(file));
     setLoading(true);
+    setLoadingMessage('Uploading...');
 
     try {
-      // 1. Upload Video
+      // 1. Upload
       const formData = new FormData();
       formData.append("file", file);
-
-      const uploadRes = await fetch(`${API_URL}/upload`, {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!uploadRes.ok) throw new Error("Upload failed");
+      const uploadRes = await fetch(`${API_URL}/upload`, { method: "POST", body: formData });
+      if (!uploadRes.ok) {
+        const err = await uploadRes.json().catch(() => ({}));
+        throw new Error(err.detail || "Upload failed");
+      }
       const { filename } = await uploadRes.json();
       setCurrentFilename(filename);
+      toast({ type: 'success', message: 'Video uploaded' });
 
-      // 2. Process Video (ASR + Segmentation)
-      const processRes = await fetch(`${API_URL}/process?filename=${filename}`, {
+      // 2. Start processing (async)
+      setLoadingMessage('Transcribing audio...');
+      const processRes = await fetch(`${API_URL}/process`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          filename,
+          language: language === 'auto' ? null : language,
+        }),
       });
-
       if (!processRes.ok) throw new Error("Processing failed");
-      const data = await processRes.json();
+      const { task_id } = await processRes.json();
 
-      setSubtitles(data.subtitles);
+      // 3. Listen for transcription result via WebSocket
+      await new Promise((resolve, reject) => {
+        const ws = new WebSocket(`${WS_URL}/ws/process-progress/${task_id}`);
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.progress !== undefined) {
+              setLoadingMessage(`Transcribing... ${data.progress}%`);
+            }
+            if (data.status === 'complete' && data.result?.subtitles) {
+              setSubtitles(data.result.subtitles);
+              toast({ type: 'success', message: `${data.result.subtitles.length} subtitles generated` });
+              ws.close();
+              resolve();
+            }
+            if (data.status === 'error') {
+              ws.close();
+              reject(new Error(data.result?.detail || 'Processing failed'));
+            }
+          } catch {}
+        };
+        ws.onerror = () => { ws.close(); reject(new Error('WebSocket error')); };
+        // Timeout after 5 minutes
+        setTimeout(() => { ws.close(); reject(new Error('Processing timeout')); }, 300000);
+      });
 
     } catch (error) {
       console.error(error);
-      alert("Error processing video. Make sure the backend is running on port 8000.");
+      toast({ type: 'error', message: error.message || "Error processing video" });
     } finally {
       setLoading(false);
+      setLoadingMessage('Processing...');
     }
-  }
+  };
 
+  // --- Export: async with WebSocket progress ---
   const handleExport = async () => {
-    if (!currentFilename) return;
-    setIsExporting(true);
-    setExportProgress(0);
+    if (!currentFilename || subtitles.length === 0) return;
 
-    // Simulate progress
-    const progressInterval = setInterval(() => {
-      setExportProgress(prev => {
-        if (prev >= 90) {
-          clearInterval(progressInterval);
-          return prev;
-        }
-        return prev + 10;
-      });
-    }, 500);
+    const taskId = crypto.randomUUID();
+    setExportTaskId(taskId);
+    setIsExporting(true);
 
     try {
       const res = await fetch(`${API_URL}/export`, {
@@ -234,42 +294,63 @@ function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           filename: currentFilename,
-          subtitles: subtitles,
-          styles: subtitleStyles
+          subtitles,
+          styles: subtitleStyles,
+          task_id: taskId,
         })
       });
 
-      clearInterval(progressInterval);
-      setExportProgress(100);
-
       if (!res.ok) throw new Error("Export failed");
-      const { filename } = await res.json();
 
-      // Trigger download
-      window.location.href = `${API_URL}/download/${filename}`;
+      // Listen for completion via WebSocket
+      await new Promise((resolve, reject) => {
+        const ws = new WebSocket(`${WS_URL}/ws/export-progress/${taskId}`);
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.status === 'complete' && data.result?.filename) {
+              ws.close();
+              // Trigger download
+              window.location.href = `${API_URL}/download/${data.result.filename}`;
+              toast({ type: 'success', message: 'Export complete! Downloading...' });
+              resolve();
+            }
+            if (data.status === 'error') {
+              ws.close();
+              reject(new Error(data.result?.detail || 'Export failed'));
+            }
+          } catch {}
+        };
+        ws.onerror = () => { ws.close(); reject(new Error('WebSocket error')); };
+        setTimeout(() => { ws.close(); reject(new Error('Export timeout')); }, 600000);
+      });
+
     } catch (error) {
       console.error(error);
-      clearInterval(progressInterval);
-      alert("Export failed. Check backend logs.");
+      toast({ type: 'error', message: error.message || "Export failed" });
     } finally {
       setTimeout(() => {
         setIsExporting(false);
-        setExportProgress(0);
-      }, 1000);
+        setExportTaskId(null);
+      }, 1500);
     }
   };
 
-  const handleFileUpload = async (e) => {
-    const file = e.target.files[0];
-    processFile(file);
+  const handleFileUpload = (e) => processFile(e.target.files[0]);
+
+  const handleApplyPreset = (presetStyles) => {
+    setSubtitleStyles(prev => ({ ...prev, ...presetStyles }));
+    toast({ type: 'success', message: 'Style preset applied' });
   };
 
   return (
     <>
+      <KeyboardShortcuts />
       <ExportModal
         isOpen={isExporting}
-        progress={exportProgress}
-        onCancel={() => setIsExporting(false)}
+        taskId={exportTaskId}
+        wsUrl={WS_URL}
+        onCancel={() => { setIsExporting(false); setExportTaskId(null); }}
       />
       <div className="flex h-screen bg-gray-950 text-white overflow-hidden font-sans">
         {/* Left Panel - Video & Timeline */}
@@ -286,30 +367,33 @@ function App() {
               <span>Reels Subtitle Generator</span>
             </h1>
 
-            <label
-              className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg cursor-pointer transition-all font-medium text-sm"
-            >
-              {loading ? <Loader2 className="animate-spin" size={18} /> : <Upload size={18} />}
-              <span>{loading ? "Processing..." : (isDragging ? "Drop Video Here" : "Upload Video")}</span>
-              <input
-                type="file"
-                accept="video/mp4,video/mov,video/quicktime"
-                className="hidden"
-                onChange={handleFileUpload}
-                disabled={loading}
-              />
-            </label>
+            <div className="flex items-center gap-3">
+              {/* Language selector */}
+              <LanguageSelector value={language} onChange={setLanguage} />
 
-            {videoSrc && (
-              <button
-                onClick={handleExport}
-                disabled={loading}
-                className="flex items-center gap-2 bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg transition-all font-bold text-sm shadow-lg shadow-green-500/20 disabled:opacity-50"
-              >
-                {loading ? <Loader2 className="animate-spin" size={18} /> : <Upload size={18} className="rotate-180" />}
-                <span>Export MP4</span>
-              </button>
-            )}
+              <label className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg cursor-pointer transition-all font-medium text-sm">
+                {loading ? <Loader2 className="animate-spin" size={18} /> : <Upload size={18} />}
+                <span>{loading ? loadingMessage : (isDragging ? "Drop Video Here" : "Upload Video")}</span>
+                <input
+                  type="file"
+                  accept="video/mp4,video/mov,video/quicktime"
+                  className="hidden"
+                  onChange={handleFileUpload}
+                  disabled={loading}
+                />
+              </label>
+
+              {videoSrc && (
+                <button
+                  onClick={handleExport}
+                  disabled={loading || subtitles.length === 0}
+                  className="flex items-center gap-2 bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg transition-all font-bold text-sm shadow-lg shadow-green-500/20 disabled:opacity-50"
+                >
+                  {loading ? <Loader2 className="animate-spin" size={18} /> : <Upload size={18} className="rotate-180" />}
+                  <span>Export MP4</span>
+                </button>
+              )}
+            </div>
           </header>
 
           <div className="flex-1 flex items-center justify-center bg-gray-950 rounded-2xl border border-gray-950 relative group overflow-hidden">
@@ -319,12 +403,11 @@ function App() {
               onTimeUpdate={handleTimeUpdate}
               onLoadedMetadata={handleLoadedMetadata}
             >
-              {/* Visual Overlay for Subtitles - Now perfectly aligned to video frame */}
               {videoSrc && (
                 <div
                   className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center"
                   onMouseMove={(e) => {
-                    if (e.buttons === 1 && activeTab === 'style') { // Only drag if style tab is active and mouse is down
+                    if (e.buttons === 1 && activeTab === 'style') {
                       const rect = e.currentTarget.getBoundingClientRect();
                       const x = ((e.clientX - rect.left) / rect.width) * 100;
                       const y = ((e.clientY - rect.top) / rect.height) * 100;
@@ -333,11 +416,9 @@ function App() {
                   }}
                   style={{ pointerEvents: activeTab === 'style' ? 'auto' : 'none' }}
                 >
-                  {/* Find current segment */}
                   {subtitles.map((sub, idx) => {
                     const isActive = currentTime >= sub.start && currentTime <= sub.end;
                     if (!isActive) return null;
-
                     return (
                       <div
                         key={idx}
@@ -351,7 +432,7 @@ function App() {
                           color: subtitleStyles.textColor,
                           textTransform: subtitleStyles.uppercase ? 'uppercase' : 'none',
                           fontWeight: 'bold',
-                          width: '80%', // Limit width to prevent overflow
+                          width: '80%',
                           whiteSpace: 'pre-wrap'
                         }}
                       >
@@ -364,9 +445,9 @@ function App() {
             </VideoPlayer>
           </div>
 
-          {/* Helper info (optional) */}
+          {/* Helper info */}
           <div className="mt-4 text-xs text-center text-gray-500">
-            Video and subtitles are synced. Click a subtitle to jump to that moment.
+            Video and subtitles are synced. Click a subtitle to jump to that moment. Press <span className="text-gray-400">?</span> for shortcuts.
           </div>
 
           {/* Video Controls */}
@@ -377,6 +458,12 @@ function App() {
               currentTime={currentTime}
               duration={duration}
               onFullscreen={handleFullscreen}
+              playbackRate={playbackRate}
+              onPlaybackRateChange={handlePlaybackRateChange}
+              volume={volume}
+              onVolumeChange={handleVolumeChange}
+              isMuted={isMuted}
+              onMuteToggle={handleMuteToggle}
             />
           )}
 
@@ -400,8 +487,8 @@ function App() {
 
         {/* Right Panel - Subtitles & Styles */}
         <div className="flex flex-col bg-gray-950 border-l border-gray-800" style={{ width: `${100 - leftPanelWidth}%` }}>
-          {/* Tabs */}
-          <div className="flex bg-gray-900/80 p-1 border-b border-gray-800">
+          {/* Tabs + Undo/Redo */}
+          <div className="flex items-center bg-gray-900/80 p-1 border-b border-gray-800">
             <button
               onClick={() => setActiveTab('subtitles')}
               className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-md transition-all ${activeTab === 'subtitles' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}
@@ -414,6 +501,24 @@ function App() {
             >
               <Type size={14} /> STYLE
             </button>
+            <div className="flex items-center gap-0.5 ml-1">
+              <button
+                onClick={() => { undo(); toast({ type: 'info', message: 'Undo' }); }}
+                disabled={!canUndo}
+                className="p-1.5 rounded text-gray-500 hover:text-white hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                title="Undo (Ctrl+Z)"
+              >
+                <Undo2 size={14} />
+              </button>
+              <button
+                onClick={() => { redo(); toast({ type: 'info', message: 'Redo' }); }}
+                disabled={!canRedo}
+                className="p-1.5 rounded text-gray-500 hover:text-white hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                title="Redo (Ctrl+Shift+Z)"
+              >
+                <Redo2 size={14} />
+              </button>
+            </div>
           </div>
 
           <div className="flex-1 overflow-hidden flex flex-col">
@@ -436,12 +541,21 @@ function App() {
                 styles={subtitleStyles}
                 onUpdateStyles={setSubtitleStyles}
                 fontList={fonts}
+                onApplyPreset={handleApplyPreset}
               />
             )}
           </div>
         </div>
       </div>
     </>
+  );
+}
+
+function App() {
+  return (
+    <ToastProvider>
+      <AppContent />
+    </ToastProvider>
   );
 }
 

@@ -1,7 +1,12 @@
+import asyncio
+import logging
 import os
+import re
 import subprocess
 import json
-from typing import List, Dict
+from typing import List, Dict, Optional, Callable
+
+logger = logging.getLogger(__name__)
 
 def format_timestamp(seconds: float) -> str:
     """Format seconds into ASS timestamp format H:MM:SS.cc"""
@@ -24,11 +29,11 @@ def generate_ass_content(subtitles: List[Dict], styles: Dict, video_width: int, 
     text_color = styles.get("textColor", "#FFFFFF").lstrip('#')
     # ASS uses BGR hex format: &Hbbggrr&
     bgr_color = f"&H{text_color[4:6]}{text_color[2:4]}{text_color[0:2]}&"
-    
+
     # Calculate position (percentage to pixels)
     pos_x = int((styles["position"]["x"] / 100) * video_width)
     pos_y = int((styles["position"]["y"] / 100) * video_height)
-    
+
     uppercase = styles.get("uppercase", False)
 
     ass_header = f"""[Script Info]
@@ -44,67 +49,136 @@ Style: Default,{font_name},{font_size},{bgr_color},&H000000FF,&H00000000,&H80000
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
-    
+
     events = []
     for sub in subtitles:
         start = format_timestamp(sub["start"])
         end = format_timestamp(sub["end"])
         text = sub["text"].upper() if uppercase else sub["text"]
-        
-        # In ASS, alignment 2 is bottom center. 
-        # Since we use absolute positioning \pos(x,y), alignment affects where the anchor is.
-        # \an5 is middle-center. Let's use \an5 for predictable positioning.
+
         line = f"Dialogue: 0,{start},{end},Default,,0,0,0,,{{\\an5\\pos({pos_x},{pos_y})}}{text}"
         events.append(line)
-        
+
     return ass_header + "\n".join(events)
 
 def burn_subtitles(input_path: str, output_path: str, ass_path: str):
     """
-    Uses FFmpeg to burn subtitles into the video.
+    Uses FFmpeg to burn subtitles into the video (synchronous version).
     """
-    # Ensure the path is absolute for ffmpeg filter
     abs_ass_path = os.path.abspath(ass_path)
-    
-    # Escape special chars for FFmpeg filter
-    # Replace : with \: and \ with \\\\ for FFmpeg path
     escaped_path = abs_ass_path.replace("\\", "/").replace(":", "\\:")
-    
+
     command = [
         "ffmpeg", "-y",
         "-i", input_path,
         "-vf", f"subtitles={escaped_path}",
-        "-c:v", "libx264",  # Re-encode video to properly burn in subtitles
-        "-c:a", "copy",     # Copy audio without re-encoding
-        "-preset", "fast",  # Balance speed and quality
-        "-crf", "23",       # Good quality
+        "-c:v", "libx264",
+        "-c:a", "copy",
+        "-preset", "fast",
+        "-crf", "23",
         output_path
     ]
-    
+
+    logger.info("Running FFmpeg: %s", " ".join(command))
     process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     stdout, stderr = process.communicate()
-    
+
     if process.returncode != 0:
-        print(f"FFmpeg Error: {stderr}")
+        logger.error("FFmpeg failed: %s", stderr)
         raise Exception(f"FFmpeg failed with return code {process.returncode}")
-        
+
+    logger.info("FFmpeg completed successfully: %s", output_path)
     return output_path
 
-def get_video_info(file_path: str) -> Dict[str, int]:
-    """Retrieves video width and height using ffprobe."""
+
+async def burn_subtitles_async(
+    input_path: str,
+    output_path: str,
+    ass_path: str,
+    duration: float,
+    progress_callback: Optional[Callable] = None,
+):
+    """
+    Uses FFmpeg to burn subtitles into the video (async version with progress).
+    Parses FFmpeg stderr to report encoding progress.
+    """
+    abs_ass_path = os.path.abspath(ass_path)
+    escaped_path = abs_ass_path.replace("\\", "/").replace(":", "\\:")
+
     command = [
-        "ffprobe", "-v", "error", 
-        "-select_streams", "v:0", 
-        "-show_entries", "stream=width,height", 
-        "-of", "json", 
+        "ffmpeg", "-y",
+        "-i", input_path,
+        "-vf", f"subtitles={escaped_path}",
+        "-c:v", "libx264",
+        "-c:a", "copy",
+        "-preset", "fast",
+        "-crf", "23",
+        "-progress", "pipe:1",
+        output_path
+    ]
+
+    logger.info("Running async FFmpeg: %s", " ".join(command))
+    process = await asyncio.create_subprocess_exec(
+        *command,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+
+    time_pattern = re.compile(r"out_time_ms=(\d+)")
+
+    while True:
+        line = await process.stdout.readline()
+        if not line:
+            break
+        decoded = line.decode("utf-8", errors="replace").strip()
+
+        match = time_pattern.search(decoded)
+        if match and duration > 0 and progress_callback:
+            current_ms = int(match.group(1))
+            current_seconds = current_ms / 1_000_000
+            progress = min(int((current_seconds / duration) * 100), 99)
+            await progress_callback(progress)
+
+    await process.wait()
+
+    if process.returncode != 0:
+        stderr_output = await process.stderr.read()
+        logger.error("FFmpeg failed: %s", stderr_output.decode("utf-8", errors="replace"))
+        raise Exception(f"FFmpeg failed with return code {process.returncode}")
+
+    if progress_callback:
+        await progress_callback(100)
+
+    logger.info("Async FFmpeg completed successfully: %s", output_path)
+    return output_path
+
+
+def get_video_info(file_path: str) -> Dict:
+    """Retrieves video width, height, and duration using ffprobe."""
+    command = [
+        "ffprobe", "-v", "error",
+        "-select_streams", "v:0",
+        "-show_entries", "stream=width,height,duration",
+        "-show_entries", "format=duration",
+        "-of", "json",
         file_path
     ]
     result = subprocess.run(command, capture_output=True, text=True)
     if result.returncode != 0:
-        # Fallback to standard 1080x1920 if ffprobe fails
-        return {"width": 1080, "height": 1920}
-    
+        logger.warning("ffprobe failed for %s, using defaults", file_path)
+        return {"width": 1080, "height": 1920, "duration": 0}
+
     data = json.loads(result.stdout)
     stream = data["streams"][0]
-    return {"width": stream["width"], "height": stream["height"]}
 
+    duration = 0
+    if "duration" in stream:
+        duration = float(stream["duration"])
+    elif "format" in data and "duration" in data["format"]:
+        duration = float(data["format"]["duration"])
+
+    return {
+        "width": stream["width"],
+        "height": stream["height"],
+        "duration": duration,
+    }

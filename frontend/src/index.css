@@ -7,3 +7,77 @@
     @apply bg-gray-900 text-white;
   }
 }
+
+/* Collision flash animation for Timeline */
+@keyframes collision-flash {
+  0%, 100% { background-color: transparent; }
+  50% { background-color: rgba(239, 68, 68, 0.5); }
+}
+
+/* Toast animations */
+@keyframes toast-slide-in {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes toast-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+.collision-flash {
+  animation: collision-flash 0.3s ease;
+}
+
+.toast-enter {
+  animation: toast-slide-in 0.3s ease;
+}
+
+.toast-exit {
+  animation: toast-fade-out 0.3s ease;
+}
+
+/* Subtitle highlight transition */
+.subtitle-item {
+  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Tab switch transition */
+.tab-content {
+  transition: opacity 0.2s ease;
+}
+
+/* Enhanced drag-and-drop zone */
+@keyframes drag-pulse {
+  0%, 100% { border-color: rgba(99, 102, 241, 0.3); }
+  50% { border-color: rgba(99, 102, 241, 0.8); }
+}
+
+.drag-over {
+  animation: drag-pulse 1s ease infinite;
+  background-color: rgba(99, 102, 241, 0.05);
+}
+
+/* Panel resize transition */
+.panel-resize {
+  transition: width 0.05s ease-out;
+}
+
+/* Modal overlay fade */
+@keyframes modal-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modal-scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.modal-overlay {
+  animation: modal-fade-in 0.2s ease;
+}
+
+.modal-content {
+  animation: modal-scale-in 0.2s ease;
+}
