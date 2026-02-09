@@ -10,7 +10,7 @@ const VideoPlayer = forwardRef(({ src, onTimeUpdate, onLoadedMetadata, children 
     }
 
     return (
-        <div className="relative inline-block rounded-lg overflow-hidden bg-black shadow-2xl transition-all border border-gray-800">
+        <div id="video-container" className="relative inline-block rounded-lg overflow-hidden bg-black shadow-2xl transition-all border border-gray-800">
             <video
                 ref={ref}
                 src={src}

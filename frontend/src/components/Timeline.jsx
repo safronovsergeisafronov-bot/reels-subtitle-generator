@@ -125,7 +125,7 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
         };
     }, [dragging, subtitles, onUpdateSubtitles, duration, pixelsPerSecond]);
 
-    // Playhead drag logic
+    // Playhead drag logic with snapping
     useEffect(() => {
         if (!isDraggingPlayhead) return;
 
@@ -133,7 +133,21 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
             if (!timelineRef.current) return;
             const rect = timelineRef.current.getBoundingClientRect();
             const x = e.clientX - rect.left + timelineRef.current.scrollLeft;
-            const time = Math.max(0, Math.min(duration, x / pixelsPerSecond));
+            let time = Math.max(0, Math.min(duration, x / pixelsPerSecond));
+
+            // Snap to subtitle edges
+            const PLAYHEAD_SNAP = 0.15; // seconds
+            for (const sub of subtitles) {
+                if (Math.abs(time - sub.start) < PLAYHEAD_SNAP) {
+                    time = sub.start;
+                    break;
+                }
+                if (Math.abs(time - sub.end) < PLAYHEAD_SNAP) {
+                    time = sub.end;
+                    break;
+                }
+            }
+
             onSeek(time);
         };
 
@@ -145,7 +159,7 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
             window.removeEventListener('mousemove', handleMouseMove);
             window.removeEventListener('mouseup', handleMouseUp);
         };
-    }, [isDraggingPlayhead, duration, pixelsPerSecond, onSeek]);
+    }, [isDraggingPlayhead, duration, pixelsPerSecond, onSeek, subtitles]);
 
     // Cmd/Ctrl + scroll wheel zoom
     useEffect(() => {
@@ -301,14 +315,16 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
                 {/* Playhead */}
                 <div
                     className="absolute top-0 bottom-0 z-30"
-                    style={{ left: (currentTime || 0) * pixelsPerSecond - 6, width: 13, cursor: 'ew-resize' }}
+                    style={{ left: (currentTime || 0) * pixelsPerSecond - 7, width: 15, cursor: 'ew-resize' }}
                     onMouseDown={(e) => {
                         e.stopPropagation();
                         setIsDraggingPlayhead(true);
                     }}
                 >
-                    <div className="absolute left-[6px] top-0 bottom-0 w-px bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.5)]" />
-                    <div className="absolute left-[4px] -top-1 w-2.5 h-2.5 bg-red-500 rotate-45 border border-red-400" />
+                    <div className="absolute left-[7px] top-0 bottom-0 w-px bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.5)]" />
+                    <svg className="absolute -top-0.5" style={{ left: 2 }} width="11" height="8" viewBox="0 0 11 8">
+                        <polygon points="5.5,8 0,0 11,0" fill="#ef4444" />
+                    </svg>
                 </div>
             </div>
         </div>

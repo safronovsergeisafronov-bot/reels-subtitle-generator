@@ -80,24 +80,67 @@ const SubtitleList = ({ subtitles, currentTime, onSeek, onUpdateSubtitle }) => {
     const handleSplit = (index) => {
         const sub = subtitles[index];
         const text = sub.text;
-        // Use cursor position from textarea if editing, otherwise split at middle
-        let splitPos = Math.floor(text.length / 2);
+
+        let splitPos;
+
         if (editingId === index && textareaRef.current) {
-            splitPos = textareaRef.current.selectionStart || splitPos;
+            // If editing, use cursor position
+            splitPos = textareaRef.current.selectionStart;
+        } else {
+            // Smart split: try to find a sentence boundary first
+            // Look for patterns like ". А", ". Б" (period/!/? followed by space and uppercase letter)
+            // Search near the middle of the text for the best split point
+            const mid = Math.floor(text.length / 2);
+            let bestSplit = -1;
+            let bestDist = Infinity;
+
+            // Regex: sentence end (. ! ?) followed by space and uppercase letter
+            const sentenceEndRegex = /[.!?]\s+(?=[A-ZА-ЯЁ])/g;
+            let match;
+            while ((match = sentenceEndRegex.exec(text)) !== null) {
+                // Split position is after the punctuation + space
+                const pos = match.index + match[0].length;
+                const dist = Math.abs(pos - mid);
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    bestSplit = pos;
+                }
+            }
+
+            if (bestSplit !== -1) {
+                splitPos = bestSplit;
+            } else {
+                // Fallback: split at the nearest space to the middle
+                let nearestSpace = -1;
+                let nearestDist = Infinity;
+                for (let i = 0; i < text.length; i++) {
+                    if (text[i] === ' ') {
+                        const dist = Math.abs(i - mid);
+                        if (dist < nearestDist) {
+                            nearestDist = dist;
+                            nearestSpace = i + 1; // split after the space
+                        }
+                    }
+                }
+                splitPos = nearestSpace !== -1 ? nearestSpace : mid;
+            }
         }
 
         if (splitPos <= 0 || splitPos >= text.length) return;
 
-        const midTime = (sub.start + sub.end) / 2;
+        // Calculate time split proportional to text position
+        const ratio = splitPos / text.length;
+        const splitTime = sub.start + (sub.end - sub.start) * ratio;
+
         const firstHalf = {
             ...sub,
             text: text.slice(0, splitPos).trim(),
-            end: midTime,
+            end: splitTime,
         };
         const secondHalf = {
             ...sub,
             text: text.slice(splitPos).trim(),
-            start: midTime,
+            start: splitTime,
         };
 
         const updated = [...subtitles];
@@ -249,7 +292,7 @@ const SubtitleList = ({ subtitles, currentTime, onSeek, onUpdateSubtitle }) => {
                                             <button
                                                 onClick={() => handleSplit(index)}
                                                 className="flex items-center gap-1 text-gray-500 hover:text-amber-400 text-xs transition-colors px-2 py-1 rounded hover:bg-gray-700/50"
-                                                title="Split at middle"
+                                                title="Split at sentence or word boundary"
                                             >
                                                 <Scissors size={12} />
                                                 Split

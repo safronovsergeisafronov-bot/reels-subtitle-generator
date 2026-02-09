@@ -487,8 +487,14 @@ function AppContent() {
                           color: subtitleStyles.textColor,
                           textTransform: subtitleStyles.uppercase ? 'uppercase' : 'none',
                           fontWeight: subtitleStyles.bold ? 'bold' : 'normal',
-                          textShadow: `${subtitleStyles.shadowDepth * scaleFactor}px ${subtitleStyles.shadowDepth * scaleFactor}px ${subtitleStyles.shadowDepth * scaleFactor}px ${subtitleStyles.outlineColor || '#000000'}`,
+                          paintOrder: 'stroke fill',
                           WebkitTextStroke: `${subtitleStyles.outlineWidth * scaleFactor * 0.5}px ${subtitleStyles.outlineColor || '#000000'}`,
+                          textShadow: [
+                            `${subtitleStyles.shadowDepth * scaleFactor}px ${subtitleStyles.shadowDepth * scaleFactor}px ${subtitleStyles.shadowDepth * scaleFactor}px ${subtitleStyles.outlineColor || '#000000'}`,
+                            `0 0 ${4 * scaleFactor}px rgba(0,0,0,0.8)`,
+                            `0 0 ${8 * scaleFactor}px rgba(0,0,0,0.5)`
+                          ].join(', '),
+                          lineHeight: 1.2,
                           width: '80%',
                           whiteSpace: 'pre-wrap'
                         }}
