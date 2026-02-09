@@ -10,7 +10,7 @@ import LanguageSelector from './components/LanguageSelector';
 import { ToastProvider, useToast } from './components/Toast';
 import { useHistory } from './hooks/useHistory';
 import { useAutoSave, loadAutoSave } from './hooks/useAutoSave';
-import { Upload, Loader2, Sparkles, Type, List, Undo2, Redo2 } from 'lucide-react';
+import { Upload, Loader2, Sparkles, Type, List, Undo2, Redo2, Wand2 } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
 const WS_URL = import.meta.env.VITE_WS_URL || "ws://127.0.0.1:8000";
@@ -212,7 +212,7 @@ function AppContent() {
     }
   };
 
-  // --- Process file: upload + async transcription via WebSocket ---
+  // --- Upload file only ---
   const processFile = async (file) => {
     if (!file) return;
     setVideoSrc(URL.createObjectURL(file));
@@ -220,7 +220,6 @@ function AppContent() {
     setLoadingMessage('Uploading...');
 
     try {
-      // 1. Upload
       const formData = new FormData();
       formData.append("file", file);
       const uploadRes = await fetch(`${API_URL}/upload`, { method: "POST", body: formData });
@@ -230,22 +229,34 @@ function AppContent() {
       }
       const { filename } = await uploadRes.json();
       setCurrentFilename(filename);
-      toast({ type: 'success', message: 'Video uploaded' });
+      toast({ type: 'success', message: 'Video uploaded. Click "Generate Subtitles" to transcribe.' });
+    } catch (error) {
+      console.error(error);
+      toast({ type: 'error', message: error.message || "Upload failed" });
+    } finally {
+      setLoading(false);
+      setLoadingMessage('Processing...');
+    }
+  };
 
-      // 2. Start processing (async)
-      setLoadingMessage('Transcribing audio...');
+  // --- Generate subtitles via WebSocket ---
+  const generateSubtitles = async () => {
+    if (!currentFilename) return;
+    setLoading(true);
+    setLoadingMessage('Transcribing audio...');
+
+    try {
       const processRes = await fetch(`${API_URL}/process`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          filename,
+          filename: currentFilename,
           language: language === 'auto' ? null : language,
         }),
       });
       if (!processRes.ok) throw new Error("Processing failed");
       const { task_id } = await processRes.json();
 
-      // 3. Listen for transcription result via WebSocket
       await new Promise((resolve, reject) => {
         const ws = new WebSocket(`${WS_URL}/ws/process-progress/${task_id}`);
         ws.onmessage = (event) => {
@@ -267,13 +278,11 @@ function AppContent() {
           } catch {}
         };
         ws.onerror = () => { ws.close(); reject(new Error('WebSocket error')); };
-        // Timeout after 5 minutes
         setTimeout(() => { ws.close(); reject(new Error('Processing timeout')); }, 300000);
       });
-
     } catch (error) {
       console.error(error);
-      toast({ type: 'error', message: error.message || "Error processing video" });
+      toast({ type: 'error', message: error.message || "Error generating subtitles" });
     } finally {
       setLoading(false);
       setLoadingMessage('Processing...');
@@ -382,6 +391,17 @@ function AppContent() {
                   disabled={loading}
                 />
               </label>
+
+              {videoSrc && (
+                <button
+                  onClick={generateSubtitles}
+                  disabled={loading || !currentFilename}
+                  className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg transition-all font-bold text-sm shadow-lg shadow-purple-500/20 disabled:opacity-50"
+                >
+                  {loading ? <Loader2 className="animate-spin" size={18} /> : <Wand2 size={18} />}
+                  <span>{loading ? loadingMessage : 'Generate Subtitles'}</span>
+                </button>
+              )}
 
               {videoSrc && (
                 <button

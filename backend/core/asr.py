@@ -7,7 +7,20 @@ from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+_client = None
+
+
+def _get_client() -> OpenAI:
+    global _client
+    if _client is None:
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            raise RuntimeError(
+                "OPENAI_API_KEY is not set. "
+                "Create backend/.env with your key: OPENAI_API_KEY=sk-..."
+            )
+        _client = OpenAI(api_key=api_key)
+    return _client
 
 OPENAI_FILE_LIMIT = 25 * 1024 * 1024  # 25 MB
 
@@ -58,7 +71,7 @@ def transcribe_audio(file_path: str, language: Optional[str] = None):
             kwargs["language"] = language
 
         with open(upload_path, "rb") as audio_file:
-            result = client.audio.transcriptions.create(file=audio_file, **kwargs)
+            result = _get_client().audio.transcriptions.create(file=audio_file, **kwargs)
     finally:
         if cleanup_path and os.path.exists(cleanup_path):
             os.remove(cleanup_path)

@@ -66,12 +66,14 @@ def burn_subtitles(input_path: str, output_path: str, ass_path: str):
     Uses FFmpeg to burn subtitles into the video (synchronous version).
     """
     abs_ass_path = os.path.abspath(ass_path)
-    escaped_path = abs_ass_path.replace("\\", "/").replace(":", "\\:")
+    # FFmpeg filter parser: wrap path in single quotes to handle spaces and special chars
+    # Inside single quotes, only \ and ' need escaping
+    escaped_path = abs_ass_path.replace("\\", "\\\\").replace("'", "\\'")
 
     command = [
         "ffmpeg", "-y",
         "-i", input_path,
-        "-vf", f"subtitles={escaped_path}",
+        "-vf", f"subtitles='{escaped_path}'",
         "-c:v", "libx264",
         "-c:a", "copy",
         "-preset", "fast",
@@ -84,8 +86,8 @@ def burn_subtitles(input_path: str, output_path: str, ass_path: str):
     stdout, stderr = process.communicate()
 
     if process.returncode != 0:
-        logger.error("FFmpeg failed: %s", stderr)
-        raise Exception(f"FFmpeg failed with return code {process.returncode}")
+        logger.error("FFmpeg failed (rc=%d): %s", process.returncode, stderr)
+        raise Exception(f"FFmpeg failed with return code {process.returncode}: {stderr[-500:] if stderr else 'no stderr'}")
 
     logger.info("FFmpeg completed successfully: %s", output_path)
     return output_path
@@ -103,12 +105,14 @@ async def burn_subtitles_async(
     Parses FFmpeg stderr to report encoding progress.
     """
     abs_ass_path = os.path.abspath(ass_path)
-    escaped_path = abs_ass_path.replace("\\", "/").replace(":", "\\:")
+    # FFmpeg filter parser: wrap path in single quotes to handle spaces and special chars
+    # Inside single quotes, only \ and ' need escaping
+    escaped_path = abs_ass_path.replace("\\", "\\\\").replace("'", "\\'")
 
     command = [
         "ffmpeg", "-y",
         "-i", input_path,
-        "-vf", f"subtitles={escaped_path}",
+        "-vf", f"subtitles='{escaped_path}'",
         "-c:v", "libx264",
         "-c:a", "copy",
         "-preset", "fast",
@@ -143,8 +147,9 @@ async def burn_subtitles_async(
 
     if process.returncode != 0:
         stderr_output = await process.stderr.read()
-        logger.error("FFmpeg failed: %s", stderr_output.decode("utf-8", errors="replace"))
-        raise Exception(f"FFmpeg failed with return code {process.returncode}")
+        stderr_text = stderr_output.decode("utf-8", errors="replace")
+        logger.error("FFmpeg failed (rc=%d): %s", process.returncode, stderr_text)
+        raise Exception(f"FFmpeg failed with return code {process.returncode}: {stderr_text[-500:]}")
 
     if progress_callback:
         await progress_callback(100)
