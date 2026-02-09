@@ -20,7 +20,7 @@ export const stylePresets = [
     uppercase: true,
     outlineWidth: 4,
     outlineColor: "#000000",
-    shadowDepth: 1,
+    shadowDepth: 0,
     bold: true,
     position: { x: 0, y: -800 },
     description: "CapCut style, Helvetica Bold",

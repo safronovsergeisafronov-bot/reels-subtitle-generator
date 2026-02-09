@@ -39,6 +39,7 @@ function AppContent() {
   const [videoContainerWidth, setVideoContainerWidth] = useState(null);
   const [timelineHeight, setTimelineHeight] = useState(144);
   const [isResizingTimeline, setIsResizingTimeline] = useState(false);
+  const [snapGuides, setSnapGuides] = useState({ x: false, y: false });
 
   // Video controls state
   const [playbackRate, setPlaybackRate] = useState(1);
@@ -60,7 +61,7 @@ function AppContent() {
       position: { x: 0, y: -800 },
       outlineWidth: 2,
       outlineColor: "#000000",
-      shadowDepth: 2,
+      shadowDepth: 0,
       bold: true
     };
     // Migrate old saved values
@@ -501,13 +502,31 @@ function AppContent() {
                       const rect = e.currentTarget.getBoundingClientRect();
                       const relX = (e.clientX - rect.left) / rect.width - 0.5;
                       const relY = (e.clientY - rect.top) / rect.height - 0.5;
-                      const x = Math.round(relX * videoDimensions.width);
-                      const y = Math.round(-relY * videoDimensions.height);
+                      let x = Math.round(relX * videoDimensions.width);
+                      let y = Math.round(-relY * videoDimensions.height);
+
+                      // Snap to center with threshold (30px in video coordinates)
+                      const SNAP = 30;
+                      const snappedX = Math.abs(x) < SNAP;
+                      const snappedY = Math.abs(y) < SNAP;
+                      if (snappedX) x = 0;
+                      if (snappedY) y = 0;
+                      setSnapGuides({ x: snappedX, y: snappedY });
+
                       setSubtitleStyles(prev => ({ ...prev, position: { x, y } }));
                     }
                   }}
+                  onMouseUp={() => setSnapGuides({ x: false, y: false })}
+                  onMouseLeave={() => setSnapGuides({ x: false, y: false })}
                   style={{ pointerEvents: activeTab === 'style' ? 'auto' : 'none' }}
                 >
+                  {/* Snap guide lines */}
+                  {snapGuides.x && (
+                    <div className="absolute top-0 bottom-0 left-1/2 w-px bg-cyan-400/80 z-30 pointer-events-none" />
+                  )}
+                  {snapGuides.y && (
+                    <div className="absolute left-0 right-0 top-1/2 h-px bg-cyan-400/80 z-30 pointer-events-none" />
+                  )}
                   {subtitles.map((sub, idx) => {
                     const isActive = currentTime >= sub.start && currentTime <= sub.end;
                     if (!isActive) return null;
@@ -526,11 +545,9 @@ function AppContent() {
                           fontWeight: subtitleStyles.bold ? 'bold' : 'normal',
                           paintOrder: 'stroke fill',
                           WebkitTextStroke: `${subtitleStyles.outlineWidth * scaleFactor * 0.5}px ${subtitleStyles.outlineColor || '#000000'}`,
-                          textShadow: [
-                            `${subtitleStyles.shadowDepth * scaleFactor}px ${subtitleStyles.shadowDepth * scaleFactor}px ${subtitleStyles.shadowDepth * scaleFactor}px ${subtitleStyles.outlineColor || '#000000'}`,
-                            `0 0 ${4 * scaleFactor}px rgba(0,0,0,0.8)`,
-                            `0 0 ${8 * scaleFactor}px rgba(0,0,0,0.5)`
-                          ].join(', '),
+                          textShadow: subtitleStyles.shadowDepth > 0
+                            ? `${subtitleStyles.shadowDepth * scaleFactor}px ${subtitleStyles.shadowDepth * scaleFactor}px ${subtitleStyles.shadowDepth * scaleFactor * 0.5}px ${subtitleStyles.outlineColor || '#000000'}`
+                            : 'none',
                           lineHeight: 1.2,
                           width: '80%',
                           whiteSpace: 'pre-wrap'
@@ -593,10 +610,10 @@ function AppContent() {
 
           {/* Timeline resize handle */}
           <div
-            className={`h-2 flex items-center justify-center cursor-row-resize group shrink-0 ${isResizingTimeline ? 'bg-indigo-500/20' : 'hover:bg-gray-800/50'}`}
+            className={`h-3 flex items-center justify-center cursor-row-resize group shrink-0 border-y transition-colors ${isResizingTimeline ? 'bg-indigo-500/20 border-indigo-500/40' : 'bg-gray-900/50 border-gray-800 hover:bg-gray-800/80 hover:border-gray-700'}`}
             onMouseDown={() => setIsResizingTimeline(true)}
           >
-            <GripHorizontal size={14} className="text-gray-700 group-hover:text-indigo-400 transition-colors" />
+            <div className={`w-12 h-1 rounded-full transition-colors ${isResizingTimeline ? 'bg-indigo-400' : 'bg-gray-600 group-hover:bg-gray-400'}`} />
           </div>
 
           {/* Timeline */}
