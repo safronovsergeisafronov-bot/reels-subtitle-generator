@@ -6,6 +6,12 @@ cd "$DIR"
 
 echo "🚀 Starting Reels Subtitle Generator..."
 
+# Free up ports in case other apps are using them
+echo "🔄 Freeing ports 8000 and 5173..."
+lsof -ti:8000 | xargs kill -9 2>/dev/null
+lsof -ti:5173 | xargs kill -9 2>/dev/null
+sleep 1
+
 # ==========================================
 # 1. Setup Backend
 # ==========================================
