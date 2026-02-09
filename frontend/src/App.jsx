@@ -278,6 +278,7 @@ function AppContent() {
   const processFile = async (file) => {
     if (!file) return;
     setVideoSrc(URL.createObjectURL(file));
+    setSubtitles([]); // Clear old subtitles when loading new video
     setLoading(true);
     setLoadingMessage('Uploading...');
 

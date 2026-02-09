@@ -27,19 +27,23 @@ def segment_subtitles(words: List[Dict]) -> List[Dict]:
         return segment_words[-1]["end"] - segment_words[0]["start"]
 
     for i, word in enumerate(words):
+        # Skip empty words from ASR
+        if not word.get("word", "").strip():
+            continue
+
         current_segment_words.append(word)
-        
+
         current_text = get_segment_text(current_segment_words)
         current_duration = get_segment_duration(current_segment_words)
-        
+
         next_word = words[i+1] if i + 1 < len(words) else None
         should_break = False
-        
+
         # 1. Hard Constraints
-        
+
         # PRIORITY: Sentence Boundary (Strict)
         # If the word ends with .?!, we MUST break immediately after this word.
-        if word["word"][-1] in ".?!":
+        if word["word"] and word["word"][-1] in ".?!":
              should_break = True
              # Mark as forced so we ignore min char limits (e.g. "Yes." -> break)
              forced_break_flag = True
@@ -53,7 +57,7 @@ def segment_subtitles(words: List[Dict]) -> List[Dict]:
         
         # 2. Soft Constraints
         elif len(current_text) >= 18:
-             if word["word"][-1] in ".?!,":
+             if word["word"] and word["word"][-1] in ".?!,":
                  should_break = True
              elif next_word and (next_word["start"] - word["end"] > 0.3):
                  should_break = True
@@ -125,7 +129,7 @@ def segment_subtitles(words: List[Dict]) -> List[Dict]:
         
         # Rule: <= 3 chars usually implies preposition.
         # BUT: If it ends with .?!, it's a sentence end. DO NOT MOVE IT.
-        word_ends_sentence = last_word_obj["word"][-1] in ".?!"
+        word_ends_sentence = last_word_obj["word"] and last_word_obj["word"][-1] in ".?!"
         
         if len(last_word_text) <= 3 and not word_ends_sentence:
             # Move this word to the Next Subtitle

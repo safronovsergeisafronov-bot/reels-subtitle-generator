@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Copy, Clock, Download, Edit2, Save, Check, Scissors, Merge } from 'lucide-react';
+import { Copy, Clock, Download, Edit2, Save, Check, Scissors, Merge, Trash2 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -180,13 +180,22 @@ const SubtitleList = ({ subtitles, currentTime, onSeek, onUpdateSubtitle }) => {
         <div className="flex flex-col h-full bg-gray-900/50">
             {/* Toolbar */}
             {subtitles.length > 0 && (
-                <div className="p-2 border-b border-gray-800 flex justify-end">
+                <div className="p-2 border-b border-gray-800 flex justify-between items-center">
+                    <button
+                        onClick={() => { if (confirm('Очистить все субтитры?')) onUpdateSubtitle([]); }}
+                        className="flex items-center gap-1.5 bg-red-600/80 hover:bg-red-600 text-white px-3 py-1.5 rounded text-xs font-medium transition-colors"
+                        title="Удалить все субтитры"
+                    >
+                        <Trash2 size={13} />
+                        Очистить
+                    </button>
                     <button
                         onClick={handleDownloadSRT}
                         className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded text-xs font-medium transition-colors"
+                        title="Скачать субтитры в формате .srt"
                     >
                         <Download size={14} />
-                        Download .srt
+                        Скачать .srt
                     </button>
                 </div>
             )}
@@ -285,6 +294,7 @@ const SubtitleList = ({ subtitles, currentTime, onSeek, onUpdateSubtitle }) => {
                                             <button
                                                 onClick={() => handleEditStart(index, sub.text)}
                                                 className="flex items-center gap-1 text-gray-500 hover:text-indigo-400 text-xs transition-colors px-2 py-1 rounded hover:bg-gray-700/50"
+                                                title="Редактировать текст субтитра"
                                             >
                                                 <Edit2 size={12} />
                                                 Edit
@@ -292,7 +302,7 @@ const SubtitleList = ({ subtitles, currentTime, onSeek, onUpdateSubtitle }) => {
                                             <button
                                                 onClick={() => handleSplit(index)}
                                                 className="flex items-center gap-1 text-gray-500 hover:text-amber-400 text-xs transition-colors px-2 py-1 rounded hover:bg-gray-700/50"
-                                                title="Split at sentence or word boundary"
+                                                title="Разделить по границе предложения или слова"
                                             >
                                                 <Scissors size={12} />
                                                 Split
@@ -301,7 +311,7 @@ const SubtitleList = ({ subtitles, currentTime, onSeek, onUpdateSubtitle }) => {
                                                 <button
                                                     onClick={() => handleMerge(index)}
                                                     className="flex items-center gap-1 text-gray-500 hover:text-cyan-400 text-xs transition-colors px-2 py-1 rounded hover:bg-gray-700/50"
-                                                    title="Merge with next subtitle"
+                                                    title="Объединить со следующим субтитром"
                                                 >
                                                     <Merge size={12} />
                                                     Merge
