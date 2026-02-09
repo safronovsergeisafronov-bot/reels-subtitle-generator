@@ -2,6 +2,9 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 
 const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek }) => {
     const timelineRef = useRef(null);
+    const playheadRef = useRef(null);
+    const dragTimeRef = useRef(null);
+    const rafRef = useRef(null);
     const [pixelsPerSecond, setPixelsPerSecond] = useState(50);
     const SNAP_THRESHOLD = 0.15; // seconds
     const [dragging, setDragging] = useState(null);
@@ -31,6 +34,16 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
             }
         }
         return value;
+    };
+
+    // Snap time to subtitle edges
+    const snapPlayhead = (time) => {
+        const PLAYHEAD_SNAP = 0.15;
+        for (const sub of subtitles) {
+            if (Math.abs(time - sub.start) < PLAYHEAD_SNAP) return sub.start;
+            if (Math.abs(time - sub.end) < PLAYHEAD_SNAP) return sub.end;
+        }
+        return time;
     };
 
     // Collision detection - returns the index of the colliding subtitle, or -1
@@ -125,7 +138,7 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
         };
     }, [dragging, subtitles, onUpdateSubtitles, duration, pixelsPerSecond]);
 
-    // Playhead drag logic with snapping
+    // Playhead drag logic — direct DOM manipulation + rAF throttled seeking for max smoothness
     useEffect(() => {
         if (!isDraggingPlayhead) return;
 
@@ -134,30 +147,48 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
             const rect = timelineRef.current.getBoundingClientRect();
             const x = e.clientX - rect.left + timelineRef.current.scrollLeft;
             let time = Math.max(0, Math.min(duration, x / pixelsPerSecond));
+            time = snapPlayhead(time);
 
-            // Snap to subtitle edges
-            const PLAYHEAD_SNAP = 0.15; // seconds
-            for (const sub of subtitles) {
-                if (Math.abs(time - sub.start) < PLAYHEAD_SNAP) {
-                    time = sub.start;
-                    break;
-                }
-                if (Math.abs(time - sub.end) < PLAYHEAD_SNAP) {
-                    time = sub.end;
-                    break;
-                }
+            dragTimeRef.current = time;
+
+            // Immediate visual update via DOM — no React re-render
+            if (playheadRef.current) {
+                playheadRef.current.style.left = `${time * pixelsPerSecond - 7}px`;
             }
 
-            onSeek(time);
+            // Throttled video seek via requestAnimationFrame
+            if (!rafRef.current) {
+                rafRef.current = requestAnimationFrame(() => {
+                    if (dragTimeRef.current !== null) {
+                        onSeek(dragTimeRef.current);
+                    }
+                    rafRef.current = null;
+                });
+            }
         };
 
-        const handleMouseUp = () => setIsDraggingPlayhead(false);
+        const handleMouseUp = () => {
+            // Final seek to exact position
+            if (dragTimeRef.current !== null) {
+                onSeek(dragTimeRef.current);
+                dragTimeRef.current = null;
+            }
+            if (rafRef.current) {
+                cancelAnimationFrame(rafRef.current);
+                rafRef.current = null;
+            }
+            setIsDraggingPlayhead(false);
+        };
 
         window.addEventListener('mousemove', handleMouseMove);
         window.addEventListener('mouseup', handleMouseUp);
         return () => {
             window.removeEventListener('mousemove', handleMouseMove);
             window.removeEventListener('mouseup', handleMouseUp);
+            if (rafRef.current) {
+                cancelAnimationFrame(rafRef.current);
+                rafRef.current = null;
+            }
         };
     }, [isDraggingPlayhead, duration, pixelsPerSecond, onSeek, subtitles]);
 
@@ -219,6 +250,11 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [selectedIndex, clipboard, subtitles, onUpdateSubtitles]);
 
+    // Compute playhead position: during drag use ref, otherwise use prop
+    const playheadLeft = (isDraggingPlayhead && dragTimeRef.current !== null)
+        ? dragTimeRef.current * pixelsPerSecond - 7
+        : (currentTime || 0) * pixelsPerSecond - 7;
+
     return (
         <div className="bg-gray-950 border-t border-gray-800 h-36 flex flex-col overflow-hidden">
             <div className="flex justify-between items-center px-4 py-2 border-b border-gray-800 bg-gray-900/50">
@@ -247,6 +283,10 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
                     onSeek(time);
                     setIsDraggingPlayhead(true);
                     setSelectedIndex(null);
+                    // Immediately position playhead via DOM
+                    if (playheadRef.current) {
+                        playheadRef.current.style.left = `${time * pixelsPerSecond - 7}px`;
+                    }
                 }}
                 style={{ cursor: 'crosshair' }}
             >
@@ -312,10 +352,11 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
                     ))}
                 </div>
 
-                {/* Playhead */}
+                {/* Playhead — ref-driven for smooth dragging */}
                 <div
+                    ref={playheadRef}
                     className="absolute top-0 bottom-0 z-30"
-                    style={{ left: (currentTime || 0) * pixelsPerSecond - 7, width: 15, cursor: 'ew-resize' }}
+                    style={{ left: playheadLeft, width: 15, cursor: 'ew-resize', willChange: 'left' }}
                     onMouseDown={(e) => {
                         e.stopPropagation();
                         setIsDraggingPlayhead(true);

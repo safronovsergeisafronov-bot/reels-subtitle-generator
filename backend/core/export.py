@@ -38,9 +38,9 @@ def generate_ass_content(subtitles: List[Dict], styles: Dict, video_width: int, 
     shadow_depth = styles.get("shadowDepth", 2.0)
     bold_val = -1 if styles.get("bold", True) else 0
 
-    # Calculate position (percentage to pixels)
-    pos_x = int((styles["position"]["x"] / 100) * video_width)
-    pos_y = int((styles["position"]["y"] / 100) * video_height)
+    # Calculate position (pixel offset from center)
+    pos_x = int(video_width / 2 + styles["position"]["x"])
+    pos_y = int(video_height / 2 - styles["position"]["y"])
 
     uppercase = styles.get("uppercase", False)
 

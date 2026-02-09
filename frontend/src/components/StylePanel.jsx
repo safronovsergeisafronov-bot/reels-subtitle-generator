@@ -4,7 +4,7 @@ import { stylePresets } from '../data/stylePresets';
 
 const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
 
-const StylePanel = ({ styles, onUpdateStyles, fontList, onApplyPreset }) => {
+const StylePanel = ({ styles, onUpdateStyles, fontList, onApplyPreset, videoDimensions }) => {
     const [favorites, setFavorites] = useState(() => {
         const saved = localStorage.getItem('favoriteFonts');
         return saved ? JSON.parse(saved) : [];
@@ -158,16 +158,14 @@ const StylePanel = ({ styles, onUpdateStyles, fontList, onApplyPreset }) => {
                 </div>
 
                 <div className="mb-4">
-                    <label className="text-xs text-gray-400 block mb-2">POSITION</label>
+                    <label className="text-xs text-gray-400 block mb-2">POSITION (px from center)</label>
                     <div className="flex gap-3">
                         <div className="flex-1">
-                            <label className="text-[10px] text-gray-500 block mb-1">X %</label>
+                            <label className="text-[10px] text-gray-500 block mb-1">X px</label>
                             <input
                                 type="number"
-                                min="0"
-                                max="100"
                                 step="1"
-                                value={Math.round(styles.position?.x ?? 50)}
+                                value={Math.round(styles.position?.x ?? 0)}
                                 onChange={(e) => onUpdateStyles({
                                     ...styles,
                                     position: { ...styles.position, x: parseInt(e.target.value) || 0 }
@@ -176,13 +174,11 @@ const StylePanel = ({ styles, onUpdateStyles, fontList, onApplyPreset }) => {
                             />
                         </div>
                         <div className="flex-1">
-                            <label className="text-[10px] text-gray-500 block mb-1">Y %</label>
+                            <label className="text-[10px] text-gray-500 block mb-1">Y px</label>
                             <input
                                 type="number"
-                                min="0"
-                                max="100"
                                 step="1"
-                                value={Math.round(styles.position?.y ?? 80)}
+                                value={Math.round(styles.position?.y ?? -800)}
                                 onChange={(e) => onUpdateStyles({
                                     ...styles,
                                     position: { ...styles.position, y: parseInt(e.target.value) || 0 }
@@ -191,6 +187,11 @@ const StylePanel = ({ styles, onUpdateStyles, fontList, onApplyPreset }) => {
                             />
                         </div>
                     </div>
+                    {videoDimensions && (
+                        <div className="text-[9px] text-gray-600 mt-1">
+                            Video: {videoDimensions.width}×{videoDimensions.height} | Center: 0,0 | Bottom: 0,{-Math.round(videoDimensions.height / 2)}
+                        </div>
+                    )}
                 </div>
 
                 <div className="mb-4">

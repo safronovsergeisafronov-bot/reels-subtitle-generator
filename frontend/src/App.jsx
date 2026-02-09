@@ -10,7 +10,7 @@ import LanguageSelector from './components/LanguageSelector';
 import { ToastProvider, useToast } from './components/Toast';
 import { useHistory } from './hooks/useHistory';
 import { useAutoSave, loadAutoSave } from './hooks/useAutoSave';
-import { Upload, Loader2, Sparkles, Type, List, Undo2, Redo2, Wand2 } from 'lucide-react';
+import { Upload, Loader2, Sparkles, Type, List, Undo2, Redo2, Wand2, Monitor } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
 const _rawWsUrl = import.meta.env.VITE_WS_URL || "ws://127.0.0.1:8000";
@@ -54,7 +54,7 @@ function AppContent() {
       fontSize: 80,
       textColor: "#FFFFFF",
       uppercase: false,
-      position: { x: 50, y: 80 },
+      position: { x: 0, y: -800 },
       outlineWidth: 2,
       outlineColor: "#000000",
       shadowDepth: 2,
@@ -64,6 +64,13 @@ function AppContent() {
     if (saved) {
       if (saved.fontSize && saved.fontSize < 20) {
         saved.fontSize = Math.round(saved.fontSize * 3);
+      }
+      // Migrate percentage position to pixel offset from center
+      if (saved.position && saved.position.x >= 0 && saved.position.x <= 100 && saved.position.y >= 0 && saved.position.y <= 100) {
+        saved.position = {
+          x: Math.round((saved.position.x / 100 - 0.5) * 1080),
+          y: Math.round(-((saved.position.y / 100 - 0.5) * 1920))
+        };
       }
       return saved;
     }
@@ -464,9 +471,11 @@ function AppContent() {
                   onMouseMove={(e) => {
                     if (e.buttons === 1 && activeTab === 'style') {
                       const rect = e.currentTarget.getBoundingClientRect();
-                      const x = ((e.clientX - rect.left) / rect.width) * 100;
-                      const y = ((e.clientY - rect.top) / rect.height) * 100;
-                      setSubtitleStyles(prev => ({ ...prev, position: { x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) } }));
+                      const relX = (e.clientX - rect.left) / rect.width - 0.5;
+                      const relY = (e.clientY - rect.top) / rect.height - 0.5;
+                      const x = Math.round(relX * videoDimensions.width);
+                      const y = Math.round(-relY * videoDimensions.height);
+                      setSubtitleStyles(prev => ({ ...prev, position: { x, y } }));
                     }
                   }}
                   style={{ pointerEvents: activeTab === 'style' ? 'auto' : 'none' }}
@@ -479,8 +488,8 @@ function AppContent() {
                         key={idx}
                         className={`absolute text-center select-none ${activeTab === 'style' ? 'cursor-move ring-1 ring-blue-500/50 rounded p-1' : ''}`}
                         style={{
-                          left: `${subtitleStyles.position.x}%`,
-                          top: `${subtitleStyles.position.y}%`,
+                          left: `calc(50% + ${subtitleStyles.position.x * scaleFactor}px)`,
+                          top: `calc(50% - ${subtitleStyles.position.y * scaleFactor}px)`,
                           transform: 'translate(-50%, -50%)',
                           fontFamily: `'${subtitleStyles.fontFamily}', sans-serif`,
                           fontSize: `${subtitleStyles.fontSize * scaleFactor}px`,
@@ -508,10 +517,34 @@ function AppContent() {
             </VideoPlayer>
           </div>
 
-          {/* Helper info */}
-          <div className="mt-4 text-xs text-center text-gray-500">
-            Video and subtitles are synced. Click a subtitle to jump to that moment. Press <span className="text-gray-400">?</span> for shortcuts.
-          </div>
+          {/* Video info */}
+          {videoSrc ? (
+            <div className="mt-2 px-3 py-1.5 bg-gray-900/50 rounded-lg border border-gray-800">
+              <div className="flex items-center justify-center gap-6 text-[10px] text-gray-400 font-mono">
+                <span className="flex items-center gap-1.5">
+                  <Monitor size={10} className="text-gray-600" />
+                  <span className="text-gray-600">RES</span>
+                  {videoDimensions.width}×{videoDimensions.height}
+                </span>
+                <span>
+                  <span className="text-gray-600">DUR </span>
+                  {Math.floor(duration / 60)}:{String(Math.floor(duration % 60)).padStart(2, '0')}.{String(Math.floor((duration % 1) * 10)).padStart(1, '0')}
+                </span>
+                <span>
+                  <span className="text-gray-600">RATIO </span>
+                  {videoDimensions.height > 0 ? (videoDimensions.width / videoDimensions.height).toFixed(2) : '—'}
+                </span>
+                <span>
+                  <span className="text-gray-600">POS </span>
+                  {subtitleStyles.position.x},{subtitleStyles.position.y}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-4 text-xs text-center text-gray-500">
+              Drop a video file here or click "Upload Video" to get started. Press <span className="text-gray-400">?</span> for shortcuts.
+            </div>
+          )}
 
           {/* Video Controls */}
           {videoSrc && (
@@ -605,6 +638,7 @@ function AppContent() {
                 onUpdateStyles={setSubtitleStyles}
                 fontList={fonts}
                 onApplyPreset={handleApplyPreset}
+                videoDimensions={videoDimensions}
               />
             )}
           </div>
