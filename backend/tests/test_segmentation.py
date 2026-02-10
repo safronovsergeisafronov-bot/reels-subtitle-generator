@@ -268,9 +268,10 @@ class TestSegmentSubtitlesResultStructure:
             assert "end" in sub
             assert "text" in sub
 
-    def test_result_has_no_words_key(self):
-        """Final cleaned result should not include internal 'words' key."""
+    def test_result_includes_words_for_karaoke(self):
+        """Final result should include 'words' list for karaoke highlighting."""
         words = [_word("Hello", 0.0, 0.5)]
         result = segment_subtitles(words)
         for sub in result:
-            assert "words" not in sub
+            assert "words" in sub
+            assert isinstance(sub["words"], list)

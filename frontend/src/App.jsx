@@ -11,8 +11,8 @@ import SubtitleOverlay from './components/SubtitleOverlay';
 import VideoInfoBar from './components/VideoInfoBar';
 import RightPanel from './components/RightPanel';
 import Sidebar from './components/Sidebar';
-import { ToastProvider, useToast } from './components/Toast';
-import { ModalProvider, useModal } from './components/ConfirmModal';
+import { useToast } from './components/Toast';
+import { useModal } from './components/ConfirmModal';
 import { useHistory } from './hooks/useHistory';
 import { useAutoSave, loadAutoSave } from './hooks/useAutoSave';
 import { stylePresets } from './data/stylePresets';
@@ -105,11 +105,11 @@ function AppContent() {
         if (data.default_preset && !searchParams.get('project')) {
           const preset = stylePresets.find(p => p.name === data.default_preset);
           if (preset) {
-            const { name, description, ...presetStyles } = preset;
+            const { name: _name, description: _desc, ...presetStyles } = preset;
             setSubtitleStyles(prev => ({ ...prev, ...presetStyles }));
           }
         }
-      } catch {}
+      } catch (e) { console.error('Failed to load settings:', e); }
     };
     loadSettings();
   }, []);
@@ -195,9 +195,10 @@ function AppContent() {
 
         const style = document.createElement('style');
         style.id = 'dynamic-fonts';
+        const escapeCss = (str) => str.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
         let css = '';
         data.fonts.forEach(font => {
-          css += `@font-face { font-family: '${font.name}'; src: url('${API_URL}/font-file/${font.filename}'); }\n`;
+          css += `@font-face { font-family: '${escapeCss(font.name)}'; src: url('${API_URL}/font-file/${encodeURIComponent(font.filename)}'); }\n`;
         });
         style.appendChild(document.createTextNode(css));
         document.head.appendChild(style);
@@ -438,6 +439,7 @@ function AppContent() {
 
       await new Promise((resolve, reject) => {
         const ws = new WebSocket(`${WS_URL}/ws/process-progress/${task_id}`);
+        const timeoutId = setTimeout(() => { ws.close(); reject(new Error('Processing timeout')); }, 300000);
         ws.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
@@ -445,19 +447,20 @@ function AppContent() {
               setLoadingMessage(`Transcribing... ${data.progress}%`);
             }
             if (data.status === 'complete' && data.result?.subtitles) {
+              clearTimeout(timeoutId);
               setSubtitles(data.result.subtitles);
               toast({ type: 'success', message: `${data.result.subtitles.length} subtitles generated` });
               ws.close();
               resolve();
             }
             if (data.status === 'error') {
+              clearTimeout(timeoutId);
               ws.close();
               reject(new Error(data.result?.detail || 'Processing failed'));
             }
-          } catch {}
+          } catch (e) { console.error('Error parsing process WebSocket message:', e); }
         };
-        ws.onerror = () => { ws.close(); reject(new Error('WebSocket error')); };
-        setTimeout(() => { ws.close(); reject(new Error('Processing timeout')); }, 300000);
+        ws.onerror = () => { clearTimeout(timeoutId); ws.close(); reject(new Error('WebSocket error')); };
       });
     } catch (error) {
       console.error(error);
@@ -491,23 +494,25 @@ function AppContent() {
 
       await new Promise((resolve, reject) => {
         const ws = new WebSocket(`${WS_URL}/ws/export-progress/${taskId}`);
+        const timeoutId = setTimeout(() => { ws.close(); reject(new Error('Export timeout')); }, 600000);
         ws.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
             if (data.status === 'complete' && data.result?.filename) {
+              clearTimeout(timeoutId);
               ws.close();
               window.location.href = `${API_URL}/download/${data.result.filename}`;
               toast({ type: 'success', message: 'Export complete! Downloading...' });
               resolve();
             }
             if (data.status === 'error') {
+              clearTimeout(timeoutId);
               ws.close();
               reject(new Error(data.result?.detail || 'Export failed'));
             }
-          } catch {}
+          } catch (e) { console.error('Error parsing export WebSocket message:', e); }
         };
-        ws.onerror = () => { ws.close(); reject(new Error('WebSocket error')); };
-        setTimeout(() => { ws.close(); reject(new Error('Export timeout')); }, 600000);
+        ws.onerror = () => { clearTimeout(timeoutId); ws.close(); reject(new Error('WebSocket error')); };
       });
 
     } catch (error) {
@@ -557,7 +562,8 @@ function AppContent() {
       if (project.video_filename) setCurrentFilename(project.video_filename);
       setSidebarOpen(false);
       toast({ type: 'success', message: `Проект "${project.name}" загружен` });
-    } catch {
+    } catch (e) {
+      console.error('Failed to open project:', e);
       toast({ type: 'error', message: 'Ошибка загрузки проекта' });
     }
   }, [setSubtitles, toast]);
@@ -718,13 +724,7 @@ function AppContent() {
 }
 
 function App() {
-  return (
-    <ToastProvider>
-      <ModalProvider>
-        <AppContent />
-      </ModalProvider>
-    </ToastProvider>
-  );
+  return <AppContent />;
 }
 
 export default App;

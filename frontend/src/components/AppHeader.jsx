@@ -32,7 +32,7 @@ const AppHeader = memo(({
         </button>
         <h1 className="text-sm font-bold flex items-center gap-1.5 whitespace-nowrap">
           <Sparkles className="text-yellow-400" size={16} />
-          <span>Reels Subtitle Generator</span>
+          <span className="text-[13px]">Reels Subtitle Generator</span>
         </h1>
       </div>
 

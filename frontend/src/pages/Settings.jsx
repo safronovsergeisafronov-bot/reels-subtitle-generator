@@ -56,12 +56,6 @@ const Settings = () => {
     setShowKeys(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const maskKey = (key) => {
-    if (!key) return '';
-    if (key.length <= 8) return '••••••••';
-    return key.slice(0, 4) + '••••' + key.slice(-4);
-  };
-
   if (loading) {
     return <div className="p-8 text-center text-gray-500">Загрузка...</div>;
   }

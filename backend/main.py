@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-UPLOAD_DIR = os.environ.get("UPLOAD_DIR", "uploads")
+UPLOAD_DIR = os.path.realpath(os.environ.get("UPLOAD_DIR", "uploads"))
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 MAX_UPLOAD_SIZE = 500 * 1024 * 1024  # 500 MB
@@ -52,6 +52,16 @@ CLEANUP_INTERVAL_SECONDS = 30 * 60  # 30 minutes
 TASK_TTL_SECONDS = 2 * 60 * 60  # 2 hours
 TASK_CLEANUP_INTERVAL_SECONDS = 15 * 60  # 15 minutes
 WS_HEARTBEAT_INTERVAL_SECONDS = 30  # 30 seconds
+
+def _safe_upload_path(filename: str) -> str:
+    """Sanitize filename and return a safe path within UPLOAD_DIR. Raises 400 on traversal."""
+    safe_name = os.path.basename(filename)
+    if not safe_name:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    path = os.path.realpath(os.path.join(UPLOAD_DIR, safe_name))
+    if not path.startswith(UPLOAD_DIR + os.sep) and path != UPLOAD_DIR:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    return path
 
 # ---------------------------------------------------------------------------
 # In-memory task progress store
@@ -279,8 +289,20 @@ class SaveProjectRequest(BaseModel):
     height: int = 1920
 
 
+ALLOWED_SETTINGS_KEYS = {
+    "openai_api_key", "anthropic_api_key", "default_language", "default_preset",
+}
+
 class UpdateSettingsRequest(BaseModel):
     settings: dict
+
+    @field_validator("settings")
+    @classmethod
+    def validate_keys(cls, v):
+        invalid = set(v.keys()) - ALLOWED_SETTINGS_KEYS
+        if invalid:
+            raise ValueError(f"Invalid settings keys: {invalid}")
+        return v
 
 
 # ---------------------------------------------------------------------------
@@ -413,14 +435,15 @@ async def upload_video(request: Request, file: UploadFile = File(...)):
 @app.post("/api/process")
 @limiter.limit("5/minute")
 async def process_video(request: Request, body: ProcessRequest):
-    file_path = os.path.join(UPLOAD_DIR, body.filename)
+    file_path = _safe_upload_path(body.filename)
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File not found")
 
     task_id = body.task_id or str(uuid.uuid4())
+    safe_filename = os.path.basename(body.filename)
 
     # Mark file as active to prevent cleanup race
-    active_files.add(body.filename)
+    active_files.add(safe_filename)
 
     # Run transcription in background
     async def _run():
@@ -457,7 +480,7 @@ async def process_video(request: Request, body: ProcessRequest):
             logger.exception("Task %s: Processing failed: %s", task_id, str(e))
             await broadcast_progress(task_id, 0, "error", {"detail": str(e)})
         finally:
-            active_files.discard(body.filename)
+            active_files.discard(safe_filename)
 
     asyncio.create_task(_run())
 
@@ -467,7 +490,8 @@ async def process_video(request: Request, body: ProcessRequest):
 # Fonts
 # ---------------------------------------------------------------------------
 @app.get("/api/fonts")
-async def list_fonts():
+@limiter.limit("30/minute")
+async def list_fonts(request: Request):
     try:
         fonts = get_available_fonts()
         return {"fonts": fonts}
@@ -488,14 +512,15 @@ async def get_font(filename: str):
 @app.post("/api/export")
 @limiter.limit("5/minute")
 async def export_video(request: Request, body: ExportRequest):
-    input_path = os.path.join(UPLOAD_DIR, body.filename)
+    input_path = _safe_upload_path(body.filename)
     if not os.path.exists(input_path):
         raise HTTPException(status_code=404, detail="Original video not found")
 
     task_id = body.task_id or str(uuid.uuid4())
+    safe_filename = os.path.basename(body.filename)
 
     # Mark input file as active to prevent cleanup race
-    active_files.add(body.filename)
+    active_files.add(safe_filename)
 
     async def _run():
         output_filename = None
@@ -543,7 +568,7 @@ async def export_video(request: Request, body: ExportRequest):
             logger.exception("Export failed for task %s", task_id)
             await broadcast_progress(task_id, 0, "error", {"detail": str(e)})
         finally:
-            active_files.discard(body.filename)
+            active_files.discard(safe_filename)
             if ass_filename:
                 active_files.discard(ass_filename)
             if output_filename:
@@ -558,7 +583,7 @@ async def export_video(request: Request, body: ExportRequest):
 # ---------------------------------------------------------------------------
 @app.get("/api/download/{filename}")
 async def download_video(filename: str):
-    path = os.path.join(UPLOAD_DIR, filename)
+    path = _safe_upload_path(filename)
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(path, filename="reels_subtitles.mp4", media_type="video/mp4")
@@ -580,31 +605,42 @@ async def create_or_update_project(request: SaveProjectRequest):
     return {"id": project_id, "status": "saved"}
 
 @app.get("/api/projects")
-async def list_projects(limit: int = 50, offset: int = 0):
+@limiter.limit("30/minute")
+async def list_projects(request: Request, limit: int = 50, offset: int = 0):
     return await get_projects(limit, offset)
 
 @app.get("/api/projects/{project_id}")
-async def get_project_by_id(project_id: str):
+@limiter.limit("30/minute")
+async def get_project_by_id(request: Request, project_id: str):
     project = await get_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     return project
 
 @app.delete("/api/projects/{project_id}")
-async def delete_project_by_id(project_id: str):
+@limiter.limit("10/minute")
+async def delete_project_by_id(request: Request, project_id: str):
     await delete_project(project_id)
     return {"status": "deleted"}
 
 # ---------------------------------------------------------------------------
 # Settings API
 # ---------------------------------------------------------------------------
+_SENSITIVE_SETTINGS_KEYS = {"openai_api_key", "anthropic_api_key"}
+
 @app.get("/api/settings")
-async def get_settings():
-    return await get_all_settings()
+@limiter.limit("30/minute")
+async def get_settings(request: Request):
+    settings = await get_all_settings()
+    for key in _SENSITIVE_SETTINGS_KEYS:
+        if key in settings and isinstance(settings[key], str) and len(settings[key]) > 4:
+            settings[key] = "****" + settings[key][-4:]
+    return settings
 
 @app.put("/api/settings")
-async def update_settings(request: UpdateSettingsRequest):
-    for key, value in request.settings.items():
+@limiter.limit("10/minute")
+async def update_settings(request: Request, body: UpdateSettingsRequest):
+    for key, value in body.settings.items():
         await set_setting(key, value)
         # Sync API keys to env vars immediately
         if key in _API_KEY_SETTINGS and value and isinstance(value, str) and value.strip():

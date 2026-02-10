@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Loader2, X, CheckCircle, AlertCircle } from 'lucide-react';
 import { WS_URL as defaultWsUrl } from '../api/client';
 
@@ -7,11 +7,26 @@ const ExportModal = ({ isOpen, progress: externalProgress, onCancel, taskId, wsU
     const [status, setStatus] = useState('Encoding...');
     const [phase, setPhase] = useState('encoding');
     const [wsConnected, setWsConnected] = useState(false);
-    const [error, setError] = useState(null);
     const wsRef = useRef(null);
     const fallbackTimerRef = useRef(null);
     const modalRef = useRef(null);
     const previousFocusRef = useRef(null);
+
+    const startFallbackProgress = () => {
+        let simProgress = 0;
+        fallbackTimerRef.current = setInterval(() => {
+            simProgress += Math.random() * 3 + 1;
+            if (simProgress >= 95) {
+                simProgress = 95;
+                clearInterval(fallbackTimerRef.current);
+            }
+            setProgress(Math.min(Math.round(simProgress), 95));
+            if (simProgress >= 80) {
+                setStatus('Finalizing...');
+                setPhase('finalizing');
+            }
+        }, 500);
+    };
 
     useEffect(() => {
         if (!isOpen) {
@@ -19,7 +34,6 @@ const ExportModal = ({ isOpen, progress: externalProgress, onCancel, taskId, wsU
             setStatus('Encoding...');
             setPhase('encoding');
             setWsConnected(false);
-            setError(null);
             return;
         }
 
@@ -120,22 +134,6 @@ const ExportModal = ({ isOpen, progress: externalProgress, onCancel, taskId, wsU
             }
         }
     }, [externalProgress, wsConnected, isOpen]);
-
-    const startFallbackProgress = () => {
-        let simProgress = 0;
-        fallbackTimerRef.current = setInterval(() => {
-            simProgress += Math.random() * 3 + 1;
-            if (simProgress >= 95) {
-                simProgress = 95; // Cap at 95 for simulated
-                clearInterval(fallbackTimerRef.current);
-            }
-            setProgress(Math.min(Math.round(simProgress), 95));
-            if (simProgress >= 80) {
-                setStatus('Finalizing...');
-                setPhase('finalizing');
-            }
-        }, 500);
-    };
 
     // Focus management: trap focus, handle Escape, restore focus on close
     useEffect(() => {

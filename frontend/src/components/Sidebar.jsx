@@ -1,5 +1,4 @@
 import React, { memo, useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   Menu, X, LayoutDashboard, FolderOpen, Settings, Clock, Film,
   Key, Globe, Eye, EyeOff, Save, Check, AlertCircle, ChevronRight, Trash2,
@@ -23,7 +22,7 @@ const Sidebar = memo(({ isOpen, onToggle, onOpenProject, onDeleteProject, curren
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState(false);
   const [showKeys, setShowKeys] = useState({});
-  const [loadingSettings, setLoadingSettings] = useState(false);
+  const [, setLoadingSettings] = useState(false);
 
   // Load projects
   const fetchProjects = useCallback(async () => {
@@ -35,7 +34,9 @@ const Sidebar = memo(({ isOpen, onToggle, onOpenProject, onDeleteProject, curren
         setProjects(data.projects || []);
         setTotalProjects(data.total || 0);
       }
-    } catch {} finally {
+    } catch {
+      // Network errors silently ignored — projects list remains empty
+    } finally {
       setLoadingProjects(false);
     }
   }, []);
@@ -49,7 +50,9 @@ const Sidebar = memo(({ isOpen, onToggle, onOpenProject, onDeleteProject, curren
         const data = await res.json();
         setSettings(prev => ({ ...prev, ...data }));
       }
-    } catch {} finally {
+    } catch {
+      // Network errors silently ignored — settings remain at defaults
+    } finally {
       setLoadingSettings(false);
     }
   }, []);
@@ -100,7 +103,9 @@ const Sidebar = memo(({ isOpen, onToggle, onOpenProject, onDeleteProject, curren
           onDeleteProject();
         }
       }
-    } catch {} finally {
+    } catch {
+      // Network errors silently ignored — UI resets to non-deleting state
+    } finally {
       setDeletingId(null);
       setConfirmDeleteId(null);
     }

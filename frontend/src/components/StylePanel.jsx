@@ -1,4 +1,4 @@
-import React, { useState, useEffect, memo, useMemo } from 'react';
+import React, { useState } from 'react';
 import { Type, Star, Check, Palette } from 'lucide-react';
 import { stylePresets } from '../data/stylePresets';
 import { API_URL } from '../api/client';

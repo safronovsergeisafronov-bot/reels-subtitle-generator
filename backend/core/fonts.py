@@ -173,6 +173,9 @@ def get_font_info_by_name(display_name: str) -> Tuple[str, Optional[str]]:
 
 def get_font_path(filename: str) -> str:
     """Returns absolute path for a given font filename if found in system or project paths."""
+    filename = os.path.basename(filename)
+    if not filename:
+        return None
     for folder in SYSTEM_FONT_PATHS:
         potential_path = os.path.join(folder, filename)
         if os.path.exists(potential_path):

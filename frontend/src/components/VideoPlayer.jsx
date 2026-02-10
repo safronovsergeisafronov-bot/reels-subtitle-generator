@@ -1,5 +1,5 @@
 import React, { forwardRef, useState, useEffect, useCallback } from 'react';
-import { Play, Pause, Maximize, Minimize, Volume2, VolumeX } from 'lucide-react';
+import { Play, Pause, Minimize, Volume2, VolumeX } from 'lucide-react';
 
 const VideoPlayer = forwardRef(({ src, onTimeUpdate, onLoadedMetadata, videoDimensions, children }, ref) => {
     const [isFullscreen, setIsFullscreen] = useState(false);

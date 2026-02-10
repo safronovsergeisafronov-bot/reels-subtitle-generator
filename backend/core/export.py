@@ -8,6 +8,23 @@ from typing import List, Dict, Optional, Callable
 
 logger = logging.getLogger(__name__)
 
+
+def _escape_ffmpeg_filter_path(path: str) -> str:
+    """Escape a path for use inside FFmpeg filter option values (single-quoted)."""
+    path = path.replace("\\", "\\\\")
+    path = path.replace("'", "\\'")
+    path = path.replace(":", "\\:")
+    path = path.replace(";", "\\;")
+    path = path.replace("[", "\\[")
+    path = path.replace("]", "\\]")
+    path = path.replace(",", "\\,")
+    return path
+
+
+def _escape_ass_text(text: str) -> str:
+    """Escape characters that have special meaning in ASS subtitle format."""
+    return text.replace("{", "\uff5b").replace("}", "\uff5d")
+
 def format_timestamp(seconds: float) -> str:
     """Format seconds into ASS timestamp format H:MM:SS.cc"""
     hours = int(seconds // 3600)
@@ -70,7 +87,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             MIN_HL = 0.2  # 200ms minimum highlight duration
             # Generate per-word dialogue lines: each line shows full subtitle text
             # but only the current word is highlighted
-            word_texts = [w["word"].upper() if uppercase else w["word"] for w in words]
+            word_texts = [_escape_ass_text(w["word"].upper() if uppercase else w["word"]) for w in words]
             full_text = " ".join(word_texts)
 
             for wi, word in enumerate(words):
@@ -104,7 +121,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         else:
             start = format_timestamp(sub["start"])
             end = format_timestamp(sub["end"])
-            text = sub["text"].upper() if uppercase else sub["text"]
+            text = _escape_ass_text(sub["text"].upper() if uppercase else sub["text"])
             line = f"Dialogue: 0,{start},{end},Default,,0,0,0,,{{\\an5\\pos({pos_x},{pos_y})}}{text}"
             events.append(line)
 
@@ -115,13 +132,11 @@ def burn_subtitles(input_path: str, output_path: str, ass_path: str, fontsdir: s
     Uses FFmpeg to burn subtitles into the video (synchronous version).
     """
     abs_ass_path = os.path.abspath(ass_path)
-    # FFmpeg filter parser: wrap path in single quotes to handle spaces and special chars
-    # Inside single quotes, only \ and ' need escaping
-    escaped_path = abs_ass_path.replace("\\", "\\\\").replace("'", "\\'")
+    escaped_path = _escape_ffmpeg_filter_path(abs_ass_path)
 
     vf_filter = f"subtitles='{escaped_path}'"
     if fontsdir:
-        escaped_fontsdir = fontsdir.replace("\\", "\\\\").replace("'", "\\'")
+        escaped_fontsdir = _escape_ffmpeg_filter_path(fontsdir)
         vf_filter = f"subtitles='{escaped_path}':fontsdir='{escaped_fontsdir}'"
 
     command = [
@@ -160,13 +175,11 @@ async def burn_subtitles_async(
     Parses FFmpeg stderr to report encoding progress.
     """
     abs_ass_path = os.path.abspath(ass_path)
-    # FFmpeg filter parser: wrap path in single quotes to handle spaces and special chars
-    # Inside single quotes, only \ and ' need escaping
-    escaped_path = abs_ass_path.replace("\\", "\\\\").replace("'", "\\'")
+    escaped_path = _escape_ffmpeg_filter_path(abs_ass_path)
 
     vf_filter = f"subtitles='{escaped_path}'"
     if fontsdir:
-        escaped_fontsdir = fontsdir.replace("\\", "\\\\").replace("'", "\\'")
+        escaped_fontsdir = _escape_ffmpeg_filter_path(fontsdir)
         vf_filter = f"subtitles='{escaped_path}':fontsdir='{escaped_fontsdir}'"
 
     command = [
@@ -228,12 +241,23 @@ def get_video_info(file_path: str) -> Dict:
         "-of", "json",
         file_path
     ]
+    defaults = {"width": 1080, "height": 1920, "duration": 0}
+
     result = subprocess.run(command, capture_output=True, text=True)
     if result.returncode != 0:
         logger.warning("ffprobe failed for %s, using defaults", file_path)
-        return {"width": 1080, "height": 1920, "duration": 0}
+        return defaults
 
-    data = json.loads(result.stdout)
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        logger.warning("ffprobe returned invalid JSON for %s, using defaults", file_path)
+        return defaults
+
+    if not data.get("streams"):
+        logger.warning("ffprobe returned no streams for %s, using defaults", file_path)
+        return defaults
+
     stream = data["streams"][0]
 
     duration = 0
@@ -243,7 +267,7 @@ def get_video_info(file_path: str) -> Dict:
         duration = float(data["format"]["duration"])
 
     return {
-        "width": stream["width"],
-        "height": stream["height"],
+        "width": stream.get("width", defaults["width"]),
+        "height": stream.get("height", defaults["height"]),
         "duration": duration,
     }

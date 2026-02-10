@@ -189,7 +189,7 @@ class TestSettingsEndpoint:
     async def test_update_settings(self, client):
         response = await client.put(
             "/api/settings",
-            json={"settings": {"theme": "dark", "lang": "en"}},
+            json={"settings": {"default_language": "en", "default_preset": "classic"}},
         )
         assert response.status_code == 200
         assert response.json()["status"] == "updated"
@@ -197,8 +197,15 @@ class TestSettingsEndpoint:
         # Verify
         response = await client.get("/api/settings")
         data = response.json()
-        assert data.get("theme") == "dark"
-        assert data.get("lang") == "en"
+        assert data.get("default_language") == "en"
+        assert data.get("default_preset") == "classic"
+
+    async def test_update_settings_rejects_invalid_keys(self, client):
+        response = await client.put(
+            "/api/settings",
+            json={"settings": {"theme": "dark"}},
+        )
+        assert response.status_code == 422
 
 
 @pytest.mark.asyncio

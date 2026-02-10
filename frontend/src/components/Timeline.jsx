@@ -21,6 +21,7 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
     const [clipboard, setClipboard] = useState(null);
     const [selectedIndex, setSelectedIndex] = useState(null);
     const [isDraggingPlayhead, setIsDraggingPlayhead] = useState(false);
+    const [dragTime, setDragTime] = useState(null);
     // Force re-render counter (only incremented on drag end)
     const [, setRenderTick] = useState(0);
 
@@ -226,6 +227,7 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
             let time = Math.max(0, Math.min(duration, x / ppsRef.current));
             time = snapPlayhead(time);
             dragTimeRef.current = time;
+            setDragTime(time);
 
             if (playheadRef.current) {
                 playheadRef.current.style.left = `${time * ppsRef.current - 7}px`;
@@ -243,6 +245,7 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
             if (dragTimeRef.current !== null) {
                 onSeek(dragTimeRef.current);
                 dragTimeRef.current = null;
+                setDragTime(null);
             }
             if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
             setIsDraggingPlayhead(false);
@@ -283,29 +286,30 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
     useEffect(() => {
         const handleKeyDown = (e) => {
             if (selectedIndex === null) return;
+            const currentSubs = subtitlesRef.current;
             if ((e.metaKey || e.ctrlKey) && e.key === 'c') {
                 e.preventDefault();
-                setClipboard({ ...subtitles[selectedIndex] });
+                setClipboard({ ...currentSubs[selectedIndex] });
             }
             if ((e.metaKey || e.ctrlKey) && e.key === 'v' && clipboard) {
                 e.preventDefault();
-                const lastEnd = subtitles.reduce((max, sub) => Math.max(max, sub.end), 0);
+                const lastEnd = currentSubs.reduce((max, sub) => Math.max(max, sub.end), 0);
                 const subDuration = clipboard.end - clipboard.start;
                 const newSub = { ...clipboard, start: lastEnd + 0.1, end: lastEnd + 0.1 + subDuration };
-                onUpdateSubtitles([...subtitles, newSub]);
+                onUpdateSubtitles([...currentSubs, newSub]);
             }
             if (e.key === 'Backspace' || e.key === 'Delete') {
                 e.preventDefault();
-                onUpdateSubtitles(subtitles.filter((_, idx) => idx !== selectedIndex));
+                onUpdateSubtitles(currentSubs.filter((_, idx) => idx !== selectedIndex));
                 setSelectedIndex(null);
             }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [selectedIndex, clipboard, subtitles, onUpdateSubtitles]);
+    }, [selectedIndex, clipboard, onUpdateSubtitles]);
 
-    const playheadLeft = (isDraggingPlayhead && dragTimeRef.current !== null)
-        ? dragTimeRef.current * pixelsPerSecond - 7
+    const playheadLeft = (isDraggingPlayhead && dragTime !== null)
+        ? dragTime * pixelsPerSecond - 7
         : (currentTime || 0) * pixelsPerSecond - 7;
 
     const timelineWidth = Math.max(typeof window !== 'undefined' ? window.innerWidth : 1000, (duration || 0) * pixelsPerSecond);
