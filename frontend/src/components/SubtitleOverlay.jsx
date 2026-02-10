@@ -93,7 +93,22 @@ const SubtitleOverlay = memo(({
               whiteSpace: 'pre-wrap'
             }}
           >
-            {sub.text}
+            {subtitleStyles.karaokeEnabled && sub.words?.length ? (
+              sub.words.map((word, i) => {
+                const isCurrent = currentTime >= word.start && currentTime < word.end;
+                return (
+                  <span key={i} style={{
+                    color: isCurrent ? subtitleStyles.highlightColor : subtitleStyles.textColor,
+                    transition: 'color 0.05s',
+                    textTransform: subtitleStyles.uppercase ? 'uppercase' : 'none',
+                  }}>
+                    {word.word}{i < sub.words.length - 1 ? ' ' : ''}
+                  </span>
+                );
+              })
+            ) : (
+              subtitleStyles.uppercase ? sub.text.toUpperCase() : sub.text
+            )}
           </div>
         );
       })}

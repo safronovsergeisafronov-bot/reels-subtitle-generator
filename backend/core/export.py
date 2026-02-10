@@ -58,18 +58,55 @@ Style: Default,{font_name},{font_size},{bgr_color},&H000000FF,{bgr_outline_color
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
 
+    karaoke_enabled = styles.get("karaokeEnabled", False)
+    highlight_hex = styles.get("highlightColor", "#FFFF00").lstrip('#')
+    bgr_highlight = f"&H{highlight_hex[4:6]}{highlight_hex[2:4]}{highlight_hex[0:2]}&"
+
     events = []
     for sub in subtitles:
-        start = format_timestamp(sub["start"])
-        end = format_timestamp(sub["end"])
-        text = sub["text"].upper() if uppercase else sub["text"]
+        words = sub.get("words", [])
 
-        line = f"Dialogue: 0,{start},{end},Default,,0,0,0,,{{\\an5\\pos({pos_x},{pos_y})}}{text}"
-        events.append(line)
+        if karaoke_enabled and words:
+            # Generate per-word dialogue lines: each line shows full subtitle text
+            # but only the current word is highlighted
+            word_texts = [w["word"].upper() if uppercase else w["word"] for w in words]
+            full_text = " ".join(word_texts)
+
+            for wi, word in enumerate(words):
+                w_start = format_timestamp(word["start"])
+                w_end = format_timestamp(word["end"])
+
+                # Build text with inline color overrides
+                parts = []
+                for j, wt in enumerate(word_texts):
+                    if j == wi:
+                        parts.append(f"{{\\c{bgr_highlight}}}{wt}{{\\c{bgr_color}}}")
+                    else:
+                        parts.append(wt)
+                colored_text = " ".join(parts)
+
+                line = f"Dialogue: 0,{w_start},{w_end},Default,,0,0,0,,{{\\an5\\pos({pos_x},{pos_y})}}{colored_text}"
+                events.append(line)
+
+                # Fill gaps between words with no-highlight version
+                if wi < len(words) - 1:
+                    gap_start = word["end"]
+                    gap_end = words[wi + 1]["start"]
+                    if gap_end > gap_start + 0.01:
+                        gs = format_timestamp(gap_start)
+                        ge = format_timestamp(gap_end)
+                        line = f"Dialogue: 0,{gs},{ge},Default,,0,0,0,,{{\\an5\\pos({pos_x},{pos_y})}}{full_text}"
+                        events.append(line)
+        else:
+            start = format_timestamp(sub["start"])
+            end = format_timestamp(sub["end"])
+            text = sub["text"].upper() if uppercase else sub["text"]
+            line = f"Dialogue: 0,{start},{end},Default,,0,0,0,,{{\\an5\\pos({pos_x},{pos_y})}}{text}"
+            events.append(line)
 
     return ass_header + "\n".join(events)
 
-def burn_subtitles(input_path: str, output_path: str, ass_path: str):
+def burn_subtitles(input_path: str, output_path: str, ass_path: str, fontsdir: str = None):
     """
     Uses FFmpeg to burn subtitles into the video (synchronous version).
     """
@@ -78,10 +115,15 @@ def burn_subtitles(input_path: str, output_path: str, ass_path: str):
     # Inside single quotes, only \ and ' need escaping
     escaped_path = abs_ass_path.replace("\\", "\\\\").replace("'", "\\'")
 
+    vf_filter = f"subtitles='{escaped_path}'"
+    if fontsdir:
+        escaped_fontsdir = fontsdir.replace("\\", "\\\\").replace("'", "\\'")
+        vf_filter = f"subtitles='{escaped_path}':fontsdir='{escaped_fontsdir}'"
+
     command = [
         "ffmpeg", "-y",
         "-i", input_path,
-        "-vf", f"subtitles='{escaped_path}'",
+        "-vf", vf_filter,
         "-c:v", "libx264",
         "-c:a", "copy",
         "-preset", "fast",
@@ -107,6 +149,7 @@ async def burn_subtitles_async(
     ass_path: str,
     duration: float,
     progress_callback: Optional[Callable] = None,
+    fontsdir: str = None,
 ):
     """
     Uses FFmpeg to burn subtitles into the video (async version with progress).
@@ -117,10 +160,15 @@ async def burn_subtitles_async(
     # Inside single quotes, only \ and ' need escaping
     escaped_path = abs_ass_path.replace("\\", "\\\\").replace("'", "\\'")
 
+    vf_filter = f"subtitles='{escaped_path}'"
+    if fontsdir:
+        escaped_fontsdir = fontsdir.replace("\\", "\\\\").replace("'", "\\'")
+        vf_filter = f"subtitles='{escaped_path}':fontsdir='{escaped_fontsdir}'"
+
     command = [
         "ffmpeg", "-y",
         "-i", input_path,
-        "-vf", f"subtitles='{escaped_path}'",
+        "-vf", vf_filter,
         "-c:v", "libx264",
         "-c:a", "copy",
         "-preset", "fast",

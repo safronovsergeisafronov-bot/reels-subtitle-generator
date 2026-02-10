@@ -20,7 +20,7 @@ from slowapi.util import get_remote_address
 from core.asr import transcribe_audio, reset_client as reset_openai_client
 from core.database import init_db, save_project, get_projects, get_project, delete_project, get_all_settings, set_setting
 from core.export import burn_subtitles_async, generate_ass_content, get_video_info
-from core.fonts import get_available_fonts, get_font_path
+from core.fonts import get_available_fonts, get_font_path, get_font_info_by_name
 from core.segmentation import segment_subtitles
 from core.text_correction import correct_subtitles, reset_client as reset_anthropic_client
 
@@ -192,10 +192,17 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 # Pydantic models
 # ---------------------------------------------------------------------------
+class WordItem(BaseModel):
+    word: str
+    start: float
+    end: float
+
+
 class SubtitleItem(BaseModel):
     start: float
     end: float
     text: str
+    words: Optional[List[WordItem]] = None
 
     @field_validator("start", "end")
     @classmethod
@@ -227,6 +234,8 @@ class SubtitleStyles(BaseModel):
     outlineColor: str = "#000000"
     shadowDepth: float = 2.0
     bold: bool = True
+    highlightColor: str = "#FFFF00"
+    karaokeEnabled: bool = False
 
 
 class ExportRequest(BaseModel):
@@ -505,6 +514,11 @@ async def export_video(request: Request, body: ExportRequest):
             subtitles_dicts = [s.model_dump() for s in body.subtitles]
             styles_dict = body.styles.model_dump()
 
+            # Resolve font display name to internal family name for FFmpeg/libass
+            family_name, font_path = get_font_info_by_name(styles_dict.get("fontFamily", "Arial"))
+            styles_dict["fontFamily"] = family_name
+            fontsdir = os.path.dirname(font_path) if font_path else None
+
             ass_content = generate_ass_content(subtitles_dicts, styles_dict, info["width"], info["height"])
 
             with open(ass_path, "w", encoding="utf-8") as f:
@@ -517,7 +531,7 @@ async def export_video(request: Request, body: ExportRequest):
             async def progress_cb(progress: int):
                 await broadcast_progress(task_id, progress, "encoding")
 
-            await burn_subtitles_async(input_path, output_path, ass_path, duration, progress_cb)
+            await burn_subtitles_async(input_path, output_path, ass_path, duration, progress_cb, fontsdir=fontsdir)
 
             # Clean up ASS file
             if os.path.exists(ass_path):

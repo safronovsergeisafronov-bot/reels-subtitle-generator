@@ -69,7 +69,9 @@ function AppContent() {
       outlineWidth: 2,
       outlineColor: "#000000",
       shadowDepth: 0,
-      bold: true
+      bold: true,
+      highlightColor: "#FFFF00",
+      karaokeEnabled: false,
     };
     if (saved) {
       if (saved.fontSize && saved.fontSize < 20) {
@@ -410,6 +412,10 @@ function AppContent() {
       });
       if (!processRes.ok) {
         const errData = await processRes.json().catch(() => ({}));
+        if (processRes.status === 404) {
+          setCurrentFilename(null);
+          throw new Error('Видео не найдено на сервере. Загрузите файл заново.');
+        }
         throw new Error(errData.detail || `Processing failed (${processRes.status})`);
       }
       const { task_id } = await processRes.json();

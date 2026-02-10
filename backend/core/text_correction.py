@@ -32,6 +32,23 @@ def reset_client():
     _client = None
 
 
+def _remap_words(corrected_text: str, original_words: list) -> list:
+    """Map corrected text back to original word timestamps.
+
+    If word count matches, use corrected word text with original timestamps.
+    Otherwise fall back to original words as-is.
+    """
+    if not original_words:
+        return []
+    corrected_tokens = corrected_text.split()
+    if len(corrected_tokens) == len(original_words):
+        return [
+            {"word": ct, "start": ow["start"], "end": ow["end"]}
+            for ct, ow in zip(corrected_tokens, original_words)
+        ]
+    return original_words
+
+
 def correct_subtitles(subtitles: List[Dict], language: Optional[str] = None) -> List[Dict]:
     """
     Uses Claude to fix punctuation, capitalization, and spelling in subtitle texts.
@@ -97,10 +114,14 @@ Subtitles:
         # Build corrected subtitles
         corrected = []
         for i, sub in enumerate(subtitles):
+            original_words = sub.get("words", [])
+            corrected_text = corrected_texts[i]
+            corrected_words = _remap_words(corrected_text, original_words)
             corrected.append({
                 "start": sub["start"],
                 "end": sub["end"],
-                "text": corrected_texts[i],
+                "text": corrected_text,
+                "words": corrected_words,
             })
 
         logger.info("Text correction complete: %d segments corrected", len(corrected))

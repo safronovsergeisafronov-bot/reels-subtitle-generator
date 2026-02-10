@@ -223,7 +223,8 @@ def segment_subtitles(words: List[Dict]) -> List[Dict]:
         cleaned_subtitles.append({
             "start": sub["start"],
             "end": sub["end"],
-            "text": text
+            "text": text,
+            "words": sub.get("words", []),
         })
 
     return cleaned_subtitles

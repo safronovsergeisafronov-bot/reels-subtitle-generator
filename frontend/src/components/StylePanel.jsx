@@ -168,6 +168,42 @@ const StylePanel = ({ styles, onUpdateStyles, fontList, onApplyPreset, videoDime
                 </div>
 
                 <div className="mb-4">
+                    <label className="text-xs text-gray-400 block mb-2">KARAOKE HIGHLIGHTING</label>
+                    <button
+                        onClick={() => onUpdateStyles({ ...styles, karaokeEnabled: !styles.karaokeEnabled })}
+                        className={`px-4 py-2 rounded text-xs font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${styles.karaokeEnabled ? 'bg-yellow-600 text-white' : 'bg-gray-800 text-gray-400'}`}
+                        aria-label="Toggle karaoke highlighting"
+                        aria-pressed={styles.karaokeEnabled}
+                    >
+                        {styles.karaokeEnabled ? 'ON' : 'OFF'}
+                    </button>
+                    {styles.karaokeEnabled && (
+                        <div className="mt-2">
+                            <label className="text-[10px] text-gray-500 block mb-1">HIGHLIGHT COLOR</label>
+                            <div className="flex gap-2 items-center">
+                                {['#FFFF00', '#00FFFF', '#FF00FF', '#FF0000', '#00FF00', '#FFA500'].map(color => (
+                                    <button
+                                        key={color}
+                                        className={`w-6 h-6 rounded-full cursor-pointer ring-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 focus-visible:ring-offset-gray-900 ${styles.highlightColor === color ? 'ring-blue-500' : 'ring-transparent'}`}
+                                        style={{ backgroundColor: color }}
+                                        onClick={() => onUpdateStyles({ ...styles, highlightColor: color })}
+                                        aria-label={`Highlight color: ${color}`}
+                                        aria-pressed={styles.highlightColor === color}
+                                    />
+                                ))}
+                                <input
+                                    type="color"
+                                    value={styles.highlightColor || '#FFFF00'}
+                                    onChange={(e) => onUpdateStyles({ ...styles, highlightColor: e.target.value })}
+                                    className="w-6 h-6 rounded cursor-pointer bg-transparent border border-gray-600"
+                                    title="Custom highlight color"
+                                />
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                <div className="mb-4">
                     <label className="text-xs text-gray-400 block mb-2">POSITION (px from center)</label>
                     <div className="flex gap-3">
                         <div className="flex-1">

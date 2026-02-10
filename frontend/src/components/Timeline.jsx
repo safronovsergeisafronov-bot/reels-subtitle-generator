@@ -191,12 +191,16 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
             const node = getSubNode(drag.index);
             if (node) node.style.transition = '';
 
-            // Commit to React state (triggers useHistory snapshot)
+            // Final overlap prevention before committing
             const subs = [...subtitlesRef.current];
+            let finalStart = Math.round(drag.lastStart * 1000) / 1000;
+            let finalEnd = Math.round(drag.lastEnd * 1000) / 1000;
+            [finalStart, finalEnd] = clampNoOverlap(finalStart, finalEnd, drag.index, subs);
+
             subs[drag.index] = {
                 ...subs[drag.index],
-                start: Math.round(drag.lastStart * 1000) / 1000,
-                end: Math.round(drag.lastEnd * 1000) / 1000,
+                start: finalStart,
+                end: finalEnd,
             };
             dragRef.current = null;
             onUpdateSubtitles(subs);

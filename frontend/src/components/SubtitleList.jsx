@@ -165,6 +165,17 @@ const SubtitleList = ({ subtitles, currentTime, onSeek, onUpdateSubtitle }) => {
         onUpdateSubtitle(updated);
     };
 
+    const handleDelete = async (index) => {
+        const confirmed = await modalConfirm('Удалить этот субтитр?', {
+            title: 'Удаление субтитра',
+            confirmText: 'Удалить',
+            destructive: true,
+        });
+        if (confirmed) {
+            onUpdateSubtitle(subtitles.filter((_, i) => i !== index));
+        }
+    };
+
     const handleDownloadSRT = () => {
         const srtContent = generateSRT(subtitles);
         const blob = new Blob([srtContent], { type: 'text/plain' });
@@ -337,6 +348,15 @@ const SubtitleList = ({ subtitles, currentTime, onSeek, onUpdateSubtitle }) => {
                                                     Merge
                                                 </button>
                                             )}
+                                            <button
+                                                onClick={() => handleDelete(index)}
+                                                className="flex items-center gap-1 text-gray-500 hover:text-red-400 text-xs transition-colors px-2 py-1 rounded hover:bg-gray-700/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                                                title="Удалить субтитр"
+                                                aria-label="Delete subtitle"
+                                            >
+                                                <Trash2 size={12} />
+                                                Delete
+                                            </button>
                                         </div>
                                         <CharCount count={sub.text.length} />
                                     </div>
