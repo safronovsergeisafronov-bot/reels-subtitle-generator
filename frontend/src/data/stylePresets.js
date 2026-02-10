@@ -14,15 +14,15 @@ export const stylePresets = [
   },
   {
     name: "french.super",
-    fontFamily: "helvetica_bold",
+    fontFamily: "helvetica_regular",
     fontSize: 85,
     color: "#FFFFFF",
     uppercase: false,
     outlineWidth: 4,
     outlineColor: "#000000",
     shadowDepth: 0,
-    bold: true,
+    bold: false,
     position: { x: 0, y: -550 },
-    description: "CapCut style, Helvetica Bold",
+    description: "CapCut style, Helvetica Regular",
   },
 ];
