@@ -20,10 +20,16 @@ def _get_client():
         if not api_key:
             raise RuntimeError(
                 "ANTHROPIC_API_KEY is not set. "
-                "Add it to backend/.env: ANTHROPIC_API_KEY=sk-ant-..."
+                "Add it in Settings or to backend/.env: ANTHROPIC_API_KEY=sk-ant-..."
             )
         _client = anthropic.Anthropic(api_key=api_key)
     return _client
+
+
+def reset_client():
+    """Reset cached client so it picks up new API key from env."""
+    global _client
+    _client = None
 
 
 def correct_subtitles(subtitles: List[Dict], language: Optional[str] = None) -> List[Dict]:

@@ -62,7 +62,12 @@ export function ToastProvider({ children }) {
     <ToastContext.Provider value={{ toast }}>
       {children}
       {/* Toast Container */}
-      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
+      <div
+        className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"
+        role="status"
+        aria-live="polite"
+        aria-atomic="false"
+      >
         {toasts.map((t) => {
           const Icon = ICONS[t.type] || Info;
           return (
@@ -78,7 +83,8 @@ export function ToastProvider({ children }) {
               <span className="text-sm text-zinc-200 flex-1">{t.message}</span>
               <button
                 onClick={() => dismissToast(t.id)}
-                className="text-zinc-500 hover:text-zinc-300 transition-colors"
+                className="text-zinc-500 hover:text-zinc-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
+                aria-label="Dismiss notification"
               >
                 <X size={14} />
               </button>

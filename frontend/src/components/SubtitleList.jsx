@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Copy, Clock, Download, Edit2, Save, Check, Scissors, Merge, Trash2 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { useModal } from './ConfirmModal';
 
 // Helper to format seconds to MM:SS.ms
 const formatTime = (seconds) => {
@@ -32,7 +33,7 @@ function cn(...inputs) {
 }
 
 const CharCount = ({ count }) => {
-    let colorClass = 'text-gray-600';
+    let colorClass = 'text-gray-500';
     if (count > 30) {
         colorClass = 'text-red-400';
     } else if (count > 20) {
@@ -46,6 +47,7 @@ const CharCount = ({ count }) => {
 };
 
 const SubtitleList = ({ subtitles, currentTime, onSeek, onUpdateSubtitle }) => {
+    const { confirm: modalConfirm } = useModal();
     const activeRef = useRef(null);
     const [editingId, setEditingId] = useState(null);
     const [editText, setEditText] = useState("");
@@ -177,22 +179,31 @@ const SubtitleList = ({ subtitles, currentTime, onSeek, onUpdateSubtitle }) => {
     };
 
     return (
-        <div className="flex flex-col h-full bg-gray-900/50">
+        <div className="flex flex-col h-full bg-gray-900/50" role="region" aria-label={`Subtitle list, ${subtitles.length} subtitles`}>
             {/* Toolbar */}
             {subtitles.length > 0 && (
                 <div className="p-2 border-b border-gray-800 flex justify-between items-center">
                     <button
-                        onClick={() => { if (confirm('Очистить все субтитры?')) onUpdateSubtitle([]); }}
-                        className="flex items-center gap-1.5 bg-red-600/80 hover:bg-red-600 text-white px-3 py-1.5 rounded text-xs font-medium transition-colors"
+                        onClick={async () => {
+                            const confirmed = await modalConfirm('Очистить все субтитры?', {
+                                title: 'Очистка субтитров',
+                                confirmText: 'Очистить',
+                                destructive: true,
+                            });
+                            if (confirmed) onUpdateSubtitle([]);
+                        }}
+                        className="flex items-center gap-1.5 bg-red-600/80 hover:bg-red-600 text-white px-3 py-1.5 rounded text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
                         title="Удалить все субтитры"
+                        aria-label="Clear all subtitles"
                     >
                         <Trash2 size={13} />
                         Очистить
                     </button>
                     <button
                         onClick={handleDownloadSRT}
-                        className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded text-xs font-medium transition-colors"
+                        className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
                         title="Скачать субтитры в формате .srt"
+                        aria-label="Download subtitles as SRT file"
                     >
                         <Download size={14} />
                         Скачать .srt
@@ -219,13 +230,14 @@ const SubtitleList = ({ subtitles, currentTime, onSeek, onUpdateSubtitle }) => {
                         >
                             {/* Header: Time & Copy */}
                             <div className="flex justify-between items-center mb-2 text-xs text-gray-400">
-                                <div
-                                    className="flex items-center gap-1 cursor-pointer hover:text-indigo-400 transition-colors"
+                                <button
+                                    className="flex items-center gap-1 cursor-pointer hover:text-indigo-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
                                     onClick={() => onSeek(sub.start)}
+                                    aria-label={`Seek to ${formatTime(sub.start)}`}
                                 >
                                     <Clock size={12} />
                                     <span>{formatTime(sub.start)} - {formatTime(sub.end)}</span>
-                                </div>
+                                </button>
 
                                 {isCopied ? (
                                     <div className="flex items-center gap-1 text-green-400 bg-green-400/10 px-2 py-0.5 rounded text-[10px] font-medium animate-in fade-in zoom-in duration-200">
@@ -235,8 +247,9 @@ const SubtitleList = ({ subtitles, currentTime, onSeek, onUpdateSubtitle }) => {
                                 ) : (
                                     <button
                                         onClick={() => handleCopy(index, sub.text)}
-                                        className="opacity-0 group-hover:opacity-100 p-1 hover:bg-gray-700 rounded transition-all"
+                                        className="opacity-0 group-hover:opacity-100 p-1 hover:bg-gray-700 rounded transition-all focus:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                                         title="Copy text"
+                                        aria-label="Copy subtitle text"
                                     >
                                         <Copy size={14} className="text-gray-300" />
                                     </button>
@@ -253,27 +266,31 @@ const SubtitleList = ({ subtitles, currentTime, onSeek, onUpdateSubtitle }) => {
                                         value={editText}
                                         onChange={(e) => setEditText(e.target.value)}
                                         autoFocus
+                                        aria-label="Edit subtitle text"
                                     />
                                     <div className="flex justify-between items-center">
                                         <CharCount count={editText.length} />
                                         <div className="flex gap-2">
                                             <button
                                                 onClick={() => handleSplit(index)}
-                                                className="flex items-center gap-1 bg-amber-600 hover:bg-amber-700 text-white px-2 py-1 rounded text-xs font-medium transition-colors"
+                                                className="flex items-center gap-1 bg-amber-600 hover:bg-amber-700 text-white px-2 py-1 rounded text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
                                                 title="Split subtitle at cursor position"
+                                                aria-label="Split subtitle at cursor position"
                                             >
                                                 <Scissors size={12} />
                                                 Split
                                             </button>
                                             <button
                                                 onClick={() => setEditingId(null)}
-                                                className="flex items-center gap-1 bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-xs font-medium transition-colors"
+                                                className="flex items-center gap-1 bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
+                                                aria-label="Cancel editing"
                                             >
                                                 Cancel
                                             </button>
                                             <button
                                                 onClick={() => handleSave(index)}
-                                                className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs font-medium transition-colors"
+                                                className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-400"
+                                                aria-label="Save subtitle changes"
                                             >
                                                 <Save size={12} />
                                                 Save
@@ -293,16 +310,18 @@ const SubtitleList = ({ subtitles, currentTime, onSeek, onUpdateSubtitle }) => {
                                         <div className="flex items-center gap-1">
                                             <button
                                                 onClick={() => handleEditStart(index, sub.text)}
-                                                className="flex items-center gap-1 text-gray-500 hover:text-indigo-400 text-xs transition-colors px-2 py-1 rounded hover:bg-gray-700/50"
+                                                className="flex items-center gap-1 text-gray-500 hover:text-indigo-400 text-xs transition-colors px-2 py-1 rounded hover:bg-gray-700/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                                                 title="Редактировать текст субтитра"
+                                                aria-label="Edit subtitle"
                                             >
                                                 <Edit2 size={12} />
                                                 Edit
                                             </button>
                                             <button
                                                 onClick={() => handleSplit(index)}
-                                                className="flex items-center gap-1 text-gray-500 hover:text-amber-400 text-xs transition-colors px-2 py-1 rounded hover:bg-gray-700/50"
+                                                className="flex items-center gap-1 text-gray-500 hover:text-amber-400 text-xs transition-colors px-2 py-1 rounded hover:bg-gray-700/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                                                 title="Разделить по границе предложения или слова"
+                                                aria-label="Split subtitle"
                                             >
                                                 <Scissors size={12} />
                                                 Split
@@ -310,8 +329,9 @@ const SubtitleList = ({ subtitles, currentTime, onSeek, onUpdateSubtitle }) => {
                                             {index < subtitles.length - 1 && (
                                                 <button
                                                     onClick={() => handleMerge(index)}
-                                                    className="flex items-center gap-1 text-gray-500 hover:text-cyan-400 text-xs transition-colors px-2 py-1 rounded hover:bg-gray-700/50"
+                                                    className="flex items-center gap-1 text-gray-500 hover:text-cyan-400 text-xs transition-colors px-2 py-1 rounded hover:bg-gray-700/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                                                     title="Объединить со следующим субтитром"
+                                                    aria-label="Merge with next subtitle"
                                                 >
                                                     <Merge size={12} />
                                                     Merge

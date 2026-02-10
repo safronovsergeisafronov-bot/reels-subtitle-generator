@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Film, Clock, Trash2, Search, ExternalLink } from 'lucide-react';
-
-const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
+import { API_URL } from '../api/client';
+import { useModal } from '../components/ConfirmModal';
 
 const Projects = () => {
+  const { confirm: modalConfirm } = useModal();
   const [projects, setProjects] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -28,7 +29,12 @@ const Projects = () => {
   useEffect(() => { fetchProjects(); }, []);
 
   const handleDelete = async (id, name) => {
-    if (!confirm(`Удалить проект "${name}"?`)) return;
+    const confirmed = await modalConfirm(`Удалить проект "${name}"?`, {
+      title: 'Удаление проекта',
+      confirmText: 'Удалить',
+      destructive: true,
+    });
+    if (!confirmed) return;
     try {
       await fetch(`${API_URL}/projects/${id}`, { method: 'DELETE' });
       setProjects(prev => prev.filter(p => p.id !== id));

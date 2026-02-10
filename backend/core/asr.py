@@ -17,10 +17,16 @@ def _get_client() -> OpenAI:
         if not api_key:
             raise RuntimeError(
                 "OPENAI_API_KEY is not set. "
-                "Create backend/.env with your key: OPENAI_API_KEY=sk-..."
+                "Add it in Settings or create backend/.env with: OPENAI_API_KEY=sk-..."
             )
         _client = OpenAI(api_key=api_key)
     return _client
+
+
+def reset_client():
+    """Reset cached client so it picks up new API key from env."""
+    global _client
+    _client = None
 
 OPENAI_FILE_LIMIT = 25 * 1024 * 1024  # 25 MB
 

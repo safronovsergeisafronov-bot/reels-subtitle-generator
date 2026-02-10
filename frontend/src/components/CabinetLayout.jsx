@@ -8,7 +8,7 @@ const CabinetLayout = () => {
       {/* Sidebar */}
       <aside className="w-56 bg-gray-900 border-r border-gray-800 flex flex-col">
         <div className="p-4 border-b border-gray-800">
-          <h2 className="text-sm font-bold text-gray-300 uppercase tracking-wider">Личный кабинет</h2>
+          <h2 className="text-sm font-bold text-gray-300 uppercase tracking-wider">Профиль</h2>
         </div>
         <nav className="flex-1 p-3 space-y-1">
           <NavLink

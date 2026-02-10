@@ -1,10 +1,8 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Loader2, X, CheckCircle, AlertCircle } from 'lucide-react';
+import { WS_URL as defaultWsUrl } from '../api/client';
 
-const _rawWsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000';
-const _defaultWsUrl = _rawWsUrl.replace(/^https:\/\//, 'wss://').replace(/^http:\/\//, 'ws://');
-
-const ExportModal = ({ isOpen, progress: externalProgress, onCancel, taskId, wsUrl = _defaultWsUrl }) => {
+const ExportModal = ({ isOpen, progress: externalProgress, onCancel, taskId, wsUrl = defaultWsUrl }) => {
     const [progress, setProgress] = useState(0);
     const [status, setStatus] = useState('Encoding...');
     const [phase, setPhase] = useState('encoding');
@@ -12,6 +10,8 @@ const ExportModal = ({ isOpen, progress: externalProgress, onCancel, taskId, wsU
     const [error, setError] = useState(null);
     const wsRef = useRef(null);
     const fallbackTimerRef = useRef(null);
+    const modalRef = useRef(null);
+    const previousFocusRef = useRef(null);
 
     useEffect(() => {
         if (!isOpen) {
@@ -137,6 +137,49 @@ const ExportModal = ({ isOpen, progress: externalProgress, onCancel, taskId, wsU
         }, 500);
     };
 
+    // Focus management: trap focus, handle Escape, restore focus on close
+    useEffect(() => {
+        if (isOpen) {
+            previousFocusRef.current = document.activeElement;
+            // Focus the modal after render
+            requestAnimationFrame(() => {
+                if (modalRef.current) {
+                    const firstFocusable = modalRef.current.querySelector('button');
+                    if (firstFocusable) firstFocusable.focus();
+                }
+            });
+        } else if (previousFocusRef.current) {
+            previousFocusRef.current.focus();
+            previousFocusRef.current = null;
+        }
+    }, [isOpen]);
+
+    // Escape key to close
+    useEffect(() => {
+        if (!isOpen) return;
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                onCancel();
+            }
+            // Trap focus within modal
+            if (e.key === 'Tab' && modalRef.current) {
+                const focusable = modalRef.current.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+                if (focusable.length === 0) return;
+                const first = focusable[0];
+                const last = focusable[focusable.length - 1];
+                if (e.shiftKey && document.activeElement === first) {
+                    e.preventDefault();
+                    last.focus();
+                } else if (!e.shiftKey && document.activeElement === last) {
+                    e.preventDefault();
+                    first.focus();
+                }
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isOpen, onCancel]);
+
     if (!isOpen) return null;
 
     const phaseSteps = [
@@ -148,13 +191,14 @@ const ExportModal = ({ isOpen, progress: externalProgress, onCancel, taskId, wsU
     const currentPhaseIndex = phaseSteps.findIndex(s => s.key === phase);
 
     return (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 modal-overlay">
-            <div className="bg-gray-900 rounded-2xl p-8 w-96 border border-gray-700 shadow-2xl modal-content">
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 modal-overlay" role="dialog" aria-modal="true" aria-label="Exporting video">
+            <div ref={modalRef} className="bg-gray-900 rounded-2xl p-8 w-96 border border-gray-700 shadow-2xl modal-content">
                 <div className="flex justify-between items-center mb-6">
                     <h2 className="text-xl font-bold text-white">Exporting Video</h2>
                     <button
                         onClick={onCancel}
-                        className="text-gray-500 hover:text-white transition-colors"
+                        className="text-gray-500 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
+                        aria-label="Cancel export"
                     >
                         <X size={20} />
                     </button>
@@ -168,7 +212,7 @@ const ExportModal = ({ isOpen, progress: externalProgress, onCancel, taskId, wsU
                         return (
                             <div key={step.key} className="flex items-center gap-1">
                                 <div className={`w-2 h-2 rounded-full ${isDone ? 'bg-green-500' : isActive ? 'bg-cyan-400' : 'bg-gray-600'}`} />
-                                <span className={`text-[10px] font-medium ${isDone ? 'text-green-400' : isActive ? 'text-cyan-400' : 'text-gray-600'}`}>
+                                <span className={`text-[10px] font-medium ${isDone ? 'text-green-400' : isActive ? 'text-cyan-400' : 'text-gray-500'}`}>
                                     {step.label}
                                 </span>
                                 {idx < phaseSteps.length - 1 && (
@@ -184,7 +228,7 @@ const ExportModal = ({ isOpen, progress: externalProgress, onCancel, taskId, wsU
                         <span className="text-gray-400">{status}</span>
                         <span className="text-cyan-400 font-bold">{Math.round(progress)}%</span>
                     </div>
-                    <div className="w-full bg-gray-800 rounded-full h-3 overflow-hidden">
+                    <div className="w-full bg-gray-800 rounded-full h-3 overflow-hidden" role="progressbar" aria-valuenow={Math.round(progress)} aria-valuemin={0} aria-valuemax={100} aria-label="Export progress">
                         <div
                             className="bg-gradient-to-r from-indigo-500 to-cyan-500 h-full rounded-full transition-all duration-300"
                             style={{ width: `${progress}%` }}

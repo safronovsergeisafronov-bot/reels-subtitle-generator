@@ -33,7 +33,7 @@ const VideoControls = ({
             <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2 text-xs font-mono">
                     <span className="text-cyan-400 font-bold">{formatTime(currentTime)}</span>
-                    <span className="text-gray-600">/</span>
+                    <span className="text-gray-500">/</span>
                     <span className="text-gray-400">{formatTime(duration)}</span>
                 </div>
 
@@ -41,8 +41,9 @@ const VideoControls = ({
                 <div className="flex items-center gap-1">
                     <button
                         onClick={onMuteToggle}
-                        className="p-1 rounded hover:bg-gray-800 transition-colors text-gray-400 hover:text-white"
+                        className="p-1 rounded hover:bg-gray-800 transition-colors text-gray-400 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                         title={isMuted ? "Unmute" : "Mute"}
+                        aria-label={isMuted ? "Unmute" : "Mute"}
                     >
                         {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
                     </button>
@@ -54,6 +55,7 @@ const VideoControls = ({
                         value={isMuted ? 0 : volume}
                         onChange={(e) => onVolumeChange && onVolumeChange(parseFloat(e.target.value))}
                         className="w-16 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                        aria-label="Volume"
                     />
                 </div>
             </div>
@@ -61,7 +63,8 @@ const VideoControls = ({
             {/* Center: Play/Pause Button */}
             <button
                 onClick={onPlayPause}
-                className="flex items-center justify-center w-9 h-9 rounded-full bg-indigo-600 hover:bg-indigo-700 transition-all shadow-lg hover:scale-105 active:scale-95"
+                className="flex items-center justify-center w-9 h-9 rounded-full bg-indigo-600 hover:bg-indigo-700 transition-all shadow-lg hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900"
+                aria-label={isPlaying ? "Pause" : "Play"}
             >
                 {isPlaying ? (
                     <Pause size={18} className="text-white fill-white" />
@@ -76,8 +79,11 @@ const VideoControls = ({
                 <div className="relative">
                     <button
                         onClick={() => setShowSpeedMenu(!showSpeedMenu)}
-                        className="flex items-center gap-1 px-2 py-1.5 rounded bg-gray-800 hover:bg-gray-700 transition-all text-xs font-medium text-gray-300 border border-gray-700"
+                        className="flex items-center gap-1 px-2 py-1.5 rounded bg-gray-800 hover:bg-gray-700 transition-all text-xs font-medium text-gray-300 border border-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                         title="Playback speed"
+                        aria-label={`Playback speed: ${playbackRate}x`}
+                        aria-expanded={showSpeedMenu}
+                        aria-haspopup="true"
                     >
                         <Gauge size={14} />
                         <span>{playbackRate}x</span>
@@ -105,7 +111,8 @@ const VideoControls = ({
                 {/* Fullscreen Button */}
                 <button
                     onClick={onFullscreen}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded bg-gray-800 hover:bg-gray-700 transition-all text-xs font-medium text-gray-300 border border-gray-700"
+                    className="flex items-center gap-2 px-3 py-1.5 rounded bg-gray-800 hover:bg-gray-700 transition-all text-xs font-medium text-gray-300 border border-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                    aria-label="Full screen"
                 >
                     <Maximize size={14} />
                     <span>Full Screen</span>
@@ -115,8 +122,9 @@ const VideoControls = ({
                 {onShowShortcuts && (
                     <button
                         onClick={onShowShortcuts}
-                        className="flex items-center justify-center w-8 h-8 rounded bg-gray-800 hover:bg-gray-700 transition-all text-gray-400 hover:text-white border border-gray-700"
+                        className="flex items-center justify-center w-8 h-8 rounded bg-gray-800 hover:bg-gray-700 transition-all text-gray-400 hover:text-white border border-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                         title="Keyboard shortcuts"
+                        aria-label="Keyboard shortcuts"
                     >
                         <HelpCircle size={14} />
                     </button>

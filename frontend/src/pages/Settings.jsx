@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Save, Key, Globe, Eye, EyeOff, Check } from 'lucide-react';
-
-const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
+import { Save, Key, Globe, Eye, EyeOff, Check, AlertCircle } from 'lucide-react';
+import { API_URL } from '../api/client';
 
 const Settings = () => {
   const [settings, setSettings] = useState({
@@ -13,6 +12,7 @@ const Settings = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState(false);
   const [showKeys, setShowKeys] = useState({});
 
   useEffect(() => {
@@ -35,15 +35,18 @@ const Settings = () => {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await fetch(`${API_URL}/settings`, {
+      const res = await fetch(`${API_URL}/settings`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ settings }),
       });
+      if (!res.ok) throw new Error('Failed to save');
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
       console.error('Failed to save settings:', err);
+      setSaveError(true);
+      setTimeout(() => setSaveError(false), 3000);
     } finally {
       setSaving(false);
     }
@@ -71,13 +74,15 @@ const Settings = () => {
           onClick={handleSave}
           disabled={saving}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-            saved
-              ? 'bg-green-600 text-white'
-              : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+            saveError
+              ? 'bg-red-600 text-white'
+              : saved
+                ? 'bg-green-600 text-white'
+                : 'bg-indigo-600 hover:bg-indigo-700 text-white'
           }`}
         >
-          {saved ? <Check size={16} /> : <Save size={16} />}
-          {saved ? 'Сохранено' : saving ? 'Сохранение...' : 'Сохранить'}
+          {saveError ? <AlertCircle size={16} /> : saved ? <Check size={16} /> : <Save size={16} />}
+          {saveError ? 'Ошибка' : saved ? 'Сохранено' : saving ? 'Сохранение...' : 'Сохранить'}
         </button>
       </div>
 

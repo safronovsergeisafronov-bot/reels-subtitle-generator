@@ -1,25 +1,27 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import VideoPlayer from './components/VideoPlayer';
-import SubtitleList from './components/SubtitleList';
-import StylePanel from './components/StylePanel';
 import Timeline from './components/Timeline';
 import VideoControls from './components/VideoControls';
 import ExportModal from './components/ExportModal';
 import KeyboardShortcuts from './components/KeyboardShortcuts';
-import LanguageSelector from './components/LanguageSelector';
+import ErrorBoundary from './components/ErrorBoundary';
+import AppHeader from './components/AppHeader';
+import SubtitleOverlay from './components/SubtitleOverlay';
+import VideoInfoBar from './components/VideoInfoBar';
+import RightPanel from './components/RightPanel';
+import Sidebar from './components/Sidebar';
 import { ToastProvider, useToast } from './components/Toast';
+import { ModalProvider, useModal } from './components/ConfirmModal';
 import { useHistory } from './hooks/useHistory';
 import { useAutoSave, loadAutoSave } from './hooks/useAutoSave';
-import { Upload, Loader2, Sparkles, Type, List, Undo2, Redo2, Wand2, Monitor, GripHorizontal, Save, User } from 'lucide-react';
-
-const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
-const _rawWsUrl = import.meta.env.VITE_WS_URL || "ws://127.0.0.1:8000";
-const WS_URL = _rawWsUrl.replace(/^https:\/\//, "wss://").replace(/^http:\/\//, "ws://");
+import { stylePresets } from './data/stylePresets';
+import { API_URL, WS_URL, BASE_URL } from './api/client';
 
 function AppContent() {
   const { toast } = useToast();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const { prompt: modalPrompt } = useModal();
+  const [searchParams] = useSearchParams();
   const [projectId, setProjectId] = useState(null);
   const [projectName, setProjectName] = useState('');
   const [savingProject, setSavingProject] = useState(false);
@@ -44,7 +46,7 @@ function AppContent() {
   const [videoContainerWidth, setVideoContainerWidth] = useState(null);
   const [timelineHeight, setTimelineHeight] = useState(144);
   const [isResizingTimeline, setIsResizingTimeline] = useState(false);
-  const [snapGuides, setSnapGuides] = useState({ x: false, y: false });
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Video controls state
   const [playbackRate, setPlaybackRate] = useState(1);
@@ -69,12 +71,10 @@ function AppContent() {
       shadowDepth: 0,
       bold: true
     };
-    // Migrate old saved values
     if (saved) {
       if (saved.fontSize && saved.fontSize < 20) {
         saved.fontSize = Math.round(saved.fontSize * 3);
       }
-      // Migrate percentage position to pixel offset from center
       if (saved.position && saved.position.x >= 0 && saved.position.x <= 100 && saved.position.y >= 0 && saved.position.y <= 100) {
         saved.position = {
           x: Math.round((saved.position.x / 100 - 0.5) * 1080),
@@ -90,13 +90,35 @@ function AppContent() {
   useAutoSave('subtitle-data', subtitles.length > 0 ? { subtitles, filename: currentFilename } : null);
   useAutoSave('subtitle-styles', subtitleStyles);
 
+  // Load user settings from backend (default preset, language)
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const res = await fetch(`${API_URL}/settings`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.default_language && !searchParams.get('project')) {
+          setLanguage(data.default_language);
+        }
+        if (data.default_preset && !searchParams.get('project')) {
+          const preset = stylePresets.find(p => p.name === data.default_preset);
+          if (preset) {
+            const { name, description, ...presetStyles } = preset;
+            setSubtitleStyles(prev => ({ ...prev, ...presetStyles }));
+          }
+        }
+      } catch {}
+    };
+    loadSettings();
+  }, []);
+
   // Load project from URL param (?project=id)
   useEffect(() => {
     const pid = searchParams.get('project');
     if (!pid) return;
     const loadProject = async () => {
       try {
-        const res = await fetch(`${API_URL.replace('/api', '')}/api/projects/${pid}`);
+        const res = await fetch(`${BASE_URL}/api/projects/${pid}`);
         if (!res.ok) return;
         const project = await res.json();
         setProjectId(project.id);
@@ -116,16 +138,20 @@ function AppContent() {
   }, []);
 
   // Save project to backend
-  const handleSaveProject = async () => {
+  const handleSaveProject = useCallback(async () => {
     if (subtitles.length === 0) {
       toast({ type: 'error', message: 'Нет субтитров для сохранения' });
       return;
     }
-    const name = projectName || prompt('Название проекта:', currentFilename || 'Новый проект');
+    const name = projectName || await modalPrompt('Название проекта:', {
+      title: 'Сохранить проект',
+      defaultValue: currentFilename || 'Новый проект',
+      confirmText: 'Сохранить',
+    });
     if (!name) return;
     setSavingProject(true);
     try {
-      const res = await fetch(`${API_URL.replace('/api', '')}/api/projects`, {
+      const res = await fetch(`${BASE_URL}/api/projects`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -152,7 +178,7 @@ function AppContent() {
     } finally {
       setSavingProject(false);
     }
-  };
+  }, [subtitles, projectName, projectId, currentFilename, subtitleStyles, language, duration, videoDimensions, toast, modalPrompt]);
 
   // Fetch fonts and inject into document (once)
   useEffect(() => {
@@ -212,14 +238,12 @@ function AppContent() {
     const handleKeyDown = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
 
-      // Space: play/pause
       if (e.key === ' ' && videoRef.current) {
         e.preventDefault();
         if (isPlaying) videoRef.current.pause();
         else videoRef.current.play();
       }
 
-      // Ctrl/Cmd + Z: undo
       if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
         e.preventDefault();
         if (canUndo) {
@@ -228,7 +252,6 @@ function AppContent() {
         }
       }
 
-      // Ctrl/Cmd + Shift + Z: redo
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'z') {
         e.preventDefault();
         if (canRedo) {
@@ -242,53 +265,53 @@ function AppContent() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isPlaying, canUndo, canRedo, undo, redo, toast]);
 
-  const handleTimeUpdate = (e) => setCurrentTime(e.target.currentTime);
-  const handleLoadedMetadata = (e) => {
+  const handleTimeUpdate = useCallback((e) => setCurrentTime(e.target.currentTime), []);
+  const handleLoadedMetadata = useCallback((e) => {
     setDuration(e.target.duration);
     setVideoDimensions({ width: e.target.videoWidth, height: e.target.videoHeight });
-  };
+  }, []);
 
-  const handleSeek = (time) => {
+  const handleSeek = useCallback((time) => {
     if (videoRef.current) videoRef.current.currentTime = time;
-  };
+  }, []);
 
-  const handlePlayPause = () => {
+  const handlePlayPause = useCallback(() => {
     if (videoRef.current) {
       if (isPlaying) videoRef.current.pause();
       else videoRef.current.play();
     }
-  };
+  }, [isPlaying]);
 
-  const handleFullscreen = () => {
+  const handleFullscreen = useCallback(() => {
     const container = document.getElementById('video-container');
     if (container) {
       if (container.requestFullscreen) container.requestFullscreen();
       else if (container.webkitRequestFullscreen) container.webkitRequestFullscreen();
     }
-  };
+  }, []);
 
-  const handlePlaybackRateChange = (rate) => {
+  const handlePlaybackRateChange = useCallback((rate) => {
     setPlaybackRate(rate);
     if (videoRef.current) videoRef.current.playbackRate = rate;
-  };
+  }, []);
 
-  const handleVolumeChange = (val) => {
+  const handleVolumeChange = useCallback((val) => {
     setVolume(val);
     setIsMuted(val === 0);
     if (videoRef.current) {
       videoRef.current.volume = val;
       videoRef.current.muted = val === 0;
     }
-  };
+  }, []);
 
-  const handleMuteToggle = () => {
+  const handleMuteToggle = useCallback(() => {
     const newMuted = !isMuted;
     setIsMuted(newMuted);
     if (videoRef.current) videoRef.current.muted = newMuted;
-  };
+  }, [isMuted]);
 
   // Panel resize
-  const handleResizeStart = () => setIsResizing(true);
+  const handleResizeStart = useCallback(() => setIsResizing(true), []);
 
   useEffect(() => {
     const handleMouseMove = (e) => {
@@ -329,25 +352,16 @@ function AppContent() {
   }, [isResizingTimeline]);
 
   // Drag-and-drop
-  const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
-  const handleDragLeave = (e) => {
+  const handleDragOver = useCallback((e) => { e.preventDefault(); setIsDragging(true); }, []);
+  const handleDragLeave = useCallback((e) => {
     e.preventDefault();
     if (!e.currentTarget.contains(e.relatedTarget)) setIsDragging(false);
-  };
-  const handleDrop = async (e) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const file = e.dataTransfer.files[0];
-    if (file && (file.type === "video/mp4" || file.type === "video/quicktime")) {
-      processFile(file);
-    }
-  };
+  }, []);
 
-  // --- Upload file only ---
-  const processFile = async (file) => {
+  const processFile = useCallback(async (file) => {
     if (!file) return;
     setVideoSrc(URL.createObjectURL(file));
-    setSubtitles([]); // Clear old subtitles when loading new video
+    setSubtitles([]);
     setLoading(true);
     setLoadingMessage('Uploading...');
 
@@ -369,10 +383,18 @@ function AppContent() {
       setLoading(false);
       setLoadingMessage('Processing...');
     }
-  };
+  }, [setSubtitles, toast]);
 
-  // --- Generate subtitles via WebSocket ---
-  const generateSubtitles = async () => {
+  const handleDrop = useCallback(async (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file && (file.type === "video/mp4" || file.type === "video/quicktime")) {
+      processFile(file);
+    }
+  }, [processFile]);
+
+  const generateSubtitles = useCallback(async () => {
     if (!currentFilename) return;
     setLoading(true);
     setLoadingMessage('Transcribing audio...');
@@ -422,10 +444,9 @@ function AppContent() {
       setLoading(false);
       setLoadingMessage('Processing...');
     }
-  };
+  }, [currentFilename, language, setSubtitles, toast]);
 
-  // --- Export: async with WebSocket progress ---
-  const handleExport = async () => {
+  const handleExport = useCallback(async () => {
     if (!currentFilename || subtitles.length === 0) return;
 
     const taskId = crypto.randomUUID();
@@ -446,7 +467,6 @@ function AppContent() {
 
       if (!res.ok) throw new Error("Export failed");
 
-      // Listen for completion via WebSocket
       await new Promise((resolve, reject) => {
         const ws = new WebSocket(`${WS_URL}/ws/export-progress/${taskId}`);
         ws.onmessage = (event) => {
@@ -454,7 +474,6 @@ function AppContent() {
             const data = JSON.parse(event.data);
             if (data.status === 'complete' && data.result?.filename) {
               ws.close();
-              // Trigger download
               window.location.href = `${API_URL}/download/${data.result.filename}`;
               toast({ type: 'success', message: 'Export complete! Downloading...' });
               resolve();
@@ -478,18 +497,48 @@ function AppContent() {
         setExportTaskId(null);
       }, 1500);
     }
-  };
+  }, [currentFilename, subtitles, subtitleStyles, toast]);
 
-  const handleFileUpload = (e) => processFile(e.target.files[0]);
+  const handleFileUpload = useCallback((e) => processFile(e.target.files[0]), [processFile]);
 
-  const handleApplyPreset = (presetStyles) => {
+  const handleApplyPreset = useCallback((presetStyles) => {
     setSubtitleStyles(prev => ({ ...prev, ...presetStyles }));
     toast({ type: 'success', message: 'Style preset applied' });
-  };
+  }, [toast]);
 
-  const scaleFactor = videoContainerWidth && videoDimensions.width
-    ? videoContainerWidth / videoDimensions.width
-    : 1;
+  const handleCancelExport = useCallback(() => {
+    setIsExporting(false);
+    setExportTaskId(null);
+  }, []);
+
+  const handleToggleSidebar = useCallback(() => setSidebarOpen(prev => !prev), []);
+
+  const handleOpenProject = useCallback(async (pid) => {
+    try {
+      const res = await fetch(`${BASE_URL}/api/projects/${pid}`);
+      if (!res.ok) return;
+      const project = await res.json();
+      setProjectId(project.id);
+      setProjectName(project.name);
+      if (project.subtitles?.length) setSubtitles(project.subtitles);
+      if (project.styles && Object.keys(project.styles).length) {
+        setSubtitleStyles(prev => ({ ...prev, ...project.styles }));
+      }
+      if (project.language) setLanguage(project.language);
+      if (project.video_filename) setCurrentFilename(project.video_filename);
+      setSidebarOpen(false);
+      toast({ type: 'success', message: `Проект "${project.name}" загружен` });
+    } catch {
+      toast({ type: 'error', message: 'Ошибка загрузки проекта' });
+    }
+  }, [setSubtitles, toast]);
+
+  const scaleFactor = useMemo(() =>
+    videoContainerWidth && videoDimensions.width
+      ? videoContainerWidth / videoDimensions.width
+      : 1,
+    [videoContainerWidth, videoDimensions.width]
+  );
 
   return (
     <>
@@ -498,9 +547,16 @@ function AppContent() {
         isOpen={isExporting}
         taskId={exportTaskId}
         wsUrl={WS_URL}
-        onCancel={() => { setIsExporting(false); setExportTaskId(null); }}
+        onCancel={handleCancelExport}
       />
       <div className={`flex h-screen bg-gray-950 text-white overflow-hidden font-sans ${isResizing || isResizingTimeline ? 'select-none' : ''}`}>
+        {/* Sidebar */}
+        <Sidebar
+          isOpen={sidebarOpen}
+          onToggle={handleToggleSidebar}
+          onOpenProject={handleOpenProject}
+        />
+
         {/* Left Panel - Video & Timeline */}
         <div
           ref={leftPanelRef}
@@ -510,177 +566,54 @@ function AppContent() {
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
         >
-          <header className="flex justify-between items-center mb-3 gap-3">
-            <h1 className="text-sm font-bold flex items-center gap-1.5 whitespace-nowrap shrink-0">
-              <Sparkles className="text-yellow-400" size={16} />
-              <span>Reels Subtitle Generator</span>
-            </h1>
+          <AppHeader
+            language={language}
+            onLanguageChange={setLanguage}
+            loading={loading}
+            loadingMessage={loadingMessage}
+            isDragging={isDragging}
+            videoSrc={videoSrc}
+            currentFilename={currentFilename}
+            subtitles={subtitles}
+            savingProject={savingProject}
+            projectId={projectId}
+            onFileUpload={handleFileUpload}
+            onGenerateSubtitles={generateSubtitles}
+            onExport={handleExport}
+            onSaveProject={handleSaveProject}
+            onToggleSidebar={handleToggleSidebar}
+          />
 
-            <div className="flex items-center gap-2 flex-nowrap">
-              {/* Language selector */}
-              <LanguageSelector value={language} onChange={setLanguage} />
-
-              <label className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 px-2.5 py-1 rounded-lg cursor-pointer transition-all font-medium text-xs whitespace-nowrap">
-                {loading ? <Loader2 className="animate-spin" size={14} /> : <Upload size={14} />}
-                <span>{loading ? loadingMessage : (isDragging ? "Drop Here" : "Upload Video")}</span>
-                <input
-                  type="file"
-                  accept="video/mp4,video/mov,video/quicktime"
-                  className="hidden"
-                  onChange={handleFileUpload}
-                  disabled={loading}
-                />
-              </label>
-
-              {videoSrc && (
-                <button
-                  onClick={generateSubtitles}
-                  disabled={loading || !currentFilename}
-                  className="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 px-2.5 py-1 rounded-lg transition-all font-medium text-xs shadow-lg shadow-purple-500/20 disabled:opacity-50 whitespace-nowrap"
-                >
-                  {loading ? <Loader2 className="animate-spin" size={14} /> : <Wand2 size={14} />}
-                  <span>{loading ? loadingMessage : 'Generate Subtitles'}</span>
-                </button>
-              )}
-
-              {videoSrc && (
-                <button
-                  onClick={handleExport}
-                  disabled={loading || subtitles.length === 0}
-                  className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 px-2.5 py-1 rounded-lg transition-all font-medium text-xs shadow-lg shadow-green-500/20 disabled:opacity-50 whitespace-nowrap"
-                >
-                  {loading ? <Loader2 className="animate-spin" size={14} /> : <Upload size={14} className="rotate-180" />}
-                  <span>Export MP4</span>
-                </button>
-              )}
-
-              {subtitles.length > 0 && (
-                <button
-                  onClick={handleSaveProject}
-                  disabled={savingProject}
-                  className="flex items-center gap-1.5 bg-cyan-600 hover:bg-cyan-700 px-2.5 py-1 rounded-lg transition-all font-medium text-xs shadow-lg shadow-cyan-500/20 disabled:opacity-50 whitespace-nowrap"
-                  title="Сохранить проект"
-                >
-                  <Save size={14} />
-                  <span>{savingProject ? 'Saving...' : (projectId ? 'Сохранить' : 'Сохранить проект')}</span>
-                </button>
-              )}
-
-              <Link
-                to="/cabinet"
-                className="flex items-center gap-1.5 bg-gray-800 hover:bg-gray-700 px-2.5 py-1 rounded-lg transition-all font-medium text-xs whitespace-nowrap border border-gray-700"
-                title="Личный кабинет"
+          <ErrorBoundary fallbackTitle="Video player error">
+            <div className="flex-1 flex items-center justify-center bg-gray-950 rounded-2xl border border-gray-950 relative group overflow-hidden min-h-0">
+              <VideoPlayer
+                ref={videoRef}
+                src={videoSrc}
+                onTimeUpdate={handleTimeUpdate}
+                onLoadedMetadata={handleLoadedMetadata}
+                videoDimensions={videoDimensions}
               >
-                <User size={14} />
-                <span>Кабинет</span>
-              </Link>
+                {videoSrc && (
+                  <SubtitleOverlay
+                    subtitles={subtitles}
+                    currentTime={currentTime}
+                    subtitleStyles={subtitleStyles}
+                    scaleFactor={scaleFactor}
+                    activeTab={activeTab}
+                    videoDimensions={videoDimensions}
+                    onUpdateStyles={setSubtitleStyles}
+                  />
+                )}
+              </VideoPlayer>
             </div>
-          </header>
+          </ErrorBoundary>
 
-          <div className="flex-1 flex items-center justify-center bg-gray-950 rounded-2xl border border-gray-950 relative group overflow-hidden min-h-0">
-            <VideoPlayer
-              ref={videoRef}
-              src={videoSrc}
-              onTimeUpdate={handleTimeUpdate}
-              onLoadedMetadata={handleLoadedMetadata}
-              videoDimensions={videoDimensions}
-            >
-              {videoSrc && (
-                <div
-                  className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center"
-                  onMouseMove={(e) => {
-                    if (e.buttons === 1 && activeTab === 'style') {
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      const relX = (e.clientX - rect.left) / rect.width - 0.5;
-                      const relY = (e.clientY - rect.top) / rect.height - 0.5;
-                      let x = Math.round(relX * videoDimensions.width);
-                      let y = Math.round(-relY * videoDimensions.height);
-
-                      // Snap to center with threshold (30px in video coordinates)
-                      const SNAP = 30;
-                      const snappedX = Math.abs(x) < SNAP;
-                      const snappedY = Math.abs(y) < SNAP;
-                      if (snappedX) x = 0;
-                      if (snappedY) y = 0;
-                      setSnapGuides({ x: snappedX, y: snappedY });
-
-                      setSubtitleStyles(prev => ({ ...prev, position: { x, y } }));
-                    }
-                  }}
-                  onMouseUp={() => setSnapGuides({ x: false, y: false })}
-                  onMouseLeave={() => setSnapGuides({ x: false, y: false })}
-                  style={{ pointerEvents: activeTab === 'style' ? 'auto' : 'none' }}
-                >
-                  {/* Snap guide lines */}
-                  {snapGuides.x && (
-                    <div className="absolute top-0 bottom-0 left-1/2 w-px bg-cyan-400/80 z-30 pointer-events-none" />
-                  )}
-                  {snapGuides.y && (
-                    <div className="absolute left-0 right-0 top-1/2 h-px bg-cyan-400/80 z-30 pointer-events-none" />
-                  )}
-                  {subtitles.map((sub, idx) => {
-                    const isActive = currentTime >= sub.start && currentTime <= sub.end;
-                    if (!isActive) return null;
-                    return (
-                      <div
-                        key={idx}
-                        className={`absolute text-center select-none ${activeTab === 'style' ? 'cursor-move ring-1 ring-blue-500/50 rounded p-1' : ''}`}
-                        style={{
-                          left: `calc(50% + ${subtitleStyles.position.x * scaleFactor}px)`,
-                          top: `calc(50% - ${subtitleStyles.position.y * scaleFactor}px)`,
-                          transform: 'translate(-50%, -50%)',
-                          fontFamily: `'${subtitleStyles.fontFamily}', sans-serif`,
-                          fontSize: `${subtitleStyles.fontSize * scaleFactor}px`,
-                          color: subtitleStyles.textColor,
-                          textTransform: subtitleStyles.uppercase ? 'uppercase' : 'none',
-                          fontWeight: subtitleStyles.bold ? 'bold' : 'normal',
-                          paintOrder: 'stroke fill',
-                          WebkitTextStroke: `${subtitleStyles.outlineWidth * scaleFactor * 0.5}px ${subtitleStyles.outlineColor || '#000000'}`,
-                          textShadow: subtitleStyles.shadowDepth > 0
-                            ? `${subtitleStyles.shadowDepth * scaleFactor}px ${subtitleStyles.shadowDepth * scaleFactor}px ${subtitleStyles.shadowDepth * scaleFactor * 0.5}px ${subtitleStyles.outlineColor || '#000000'}`
-                            : 'none',
-                          lineHeight: 1.2,
-                          width: '80%',
-                          whiteSpace: 'pre-wrap'
-                        }}
-                      >
-                        {sub.text}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </VideoPlayer>
-          </div>
-
-          {/* Video info */}
-          {videoSrc ? (
-            <div className="mt-2 px-3 py-1.5 bg-gray-900/50 rounded-lg border border-gray-800">
-              <div className="flex items-center justify-center gap-6 text-[10px] text-gray-400 font-mono">
-                <span className="flex items-center gap-1.5">
-                  <Monitor size={10} className="text-gray-600" />
-                  <span className="text-gray-600">RES</span>
-                  {videoDimensions.width}×{videoDimensions.height}
-                </span>
-                <span>
-                  <span className="text-gray-600">DUR </span>
-                  {Math.floor(duration / 60)}:{String(Math.floor(duration % 60)).padStart(2, '0')}.{String(Math.floor((duration % 1) * 10)).padStart(1, '0')}
-                </span>
-                <span>
-                  <span className="text-gray-600">RATIO </span>
-                  {videoDimensions.height > 0 ? (videoDimensions.width / videoDimensions.height).toFixed(2) : '—'}
-                </span>
-                <span>
-                  <span className="text-gray-600">POS </span>
-                  {subtitleStyles.position.x},{subtitleStyles.position.y}
-                </span>
-              </div>
-            </div>
-          ) : (
-            <div className="mt-4 text-xs text-center text-gray-500">
-              Drop a video file here or click "Upload Video" to get started. Press <span className="text-gray-400">?</span> for shortcuts.
-            </div>
-          )}
+          <VideoInfoBar
+            videoSrc={videoSrc}
+            videoDimensions={videoDimensions}
+            duration={duration}
+            subtitleStyles={subtitleStyles}
+          />
 
           {/* Video Controls */}
           {videoSrc && (
@@ -728,67 +661,26 @@ function AppContent() {
         </div>
 
         {/* Right Panel - Subtitles & Styles */}
-        <div className="flex flex-col bg-gray-950 border-l border-gray-800" style={{ width: `${100 - leftPanelWidth}%` }}>
-          {/* Tabs + Undo/Redo */}
-          <div className="flex items-center bg-gray-900/80 p-1 border-b border-gray-800">
-            <button
-              onClick={() => setActiveTab('subtitles')}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-md transition-all ${activeTab === 'subtitles' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}
-            >
-              <List size={14} /> SUBTITLES
-            </button>
-            <button
-              onClick={() => setActiveTab('style')}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-md transition-all ${activeTab === 'style' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}
-            >
-              <Type size={14} /> STYLE
-            </button>
-            <div className="flex items-center gap-0.5 ml-1">
-              <button
-                onClick={() => { undo(); toast({ type: 'info', message: 'Undo' }); }}
-                disabled={!canUndo}
-                className="p-1.5 rounded text-gray-500 hover:text-white hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                title="Undo (Ctrl+Z)"
-              >
-                <Undo2 size={14} />
-              </button>
-              <button
-                onClick={() => { redo(); toast({ type: 'info', message: 'Redo' }); }}
-                disabled={!canRedo}
-                className="p-1.5 rounded text-gray-500 hover:text-white hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                title="Redo (Ctrl+Shift+Z)"
-              >
-                <Redo2 size={14} />
-              </button>
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-hidden flex flex-col">
-            {activeTab === 'subtitles' ? (
-              <>
-                <div className="p-4 border-b border-gray-800 bg-gray-900/30">
-                  <h2 className="font-semibold text-gray-300 text-sm">Active Subtitles ({subtitles.length})</h2>
-                </div>
-                <div className="flex-1 overflow-hidden">
-                  <SubtitleList
-                    subtitles={subtitles}
-                    currentTime={currentTime}
-                    onSeek={handleSeek}
-                    onUpdateSubtitle={setSubtitles}
-                  />
-                </div>
-              </>
-            ) : (
-              <StylePanel
-                styles={subtitleStyles}
-                onUpdateStyles={setSubtitleStyles}
-                fontList={fonts}
-                onApplyPreset={handleApplyPreset}
-                videoDimensions={videoDimensions}
-              />
-            )}
-          </div>
-        </div>
+        <ErrorBoundary fallbackTitle="Panel error">
+          <RightPanel
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            subtitles={subtitles}
+            currentTime={currentTime}
+            onSeek={handleSeek}
+            onUpdateSubtitles={setSubtitles}
+            subtitleStyles={subtitleStyles}
+            onUpdateStyles={setSubtitleStyles}
+            fonts={fonts}
+            onApplyPreset={handleApplyPreset}
+            videoDimensions={videoDimensions}
+            canUndo={canUndo}
+            canRedo={canRedo}
+            onUndo={undo}
+            onRedo={redo}
+            leftPanelWidth={leftPanelWidth}
+          />
+        </ErrorBoundary>
       </div>
     </>
   );
@@ -797,7 +689,9 @@ function AppContent() {
 function App() {
   return (
     <ToastProvider>
-      <AppContent />
+      <ModalProvider>
+        <AppContent />
+      </ModalProvider>
     </ToastProvider>
   );
 }

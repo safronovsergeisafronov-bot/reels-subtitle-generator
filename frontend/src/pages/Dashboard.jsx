@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FolderOpen, Settings, Clock, Film, ArrowRight } from 'lucide-react';
-
-const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
+import { API_URL } from '../api/client';
 
 const Dashboard = () => {
   const [stats, setStats] = useState({ total: 0, recent: [] });

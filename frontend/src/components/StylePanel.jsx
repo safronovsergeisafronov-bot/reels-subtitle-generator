@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo, useMemo } from 'react';
 import { Type, Star, Check, Palette } from 'lucide-react';
 import { stylePresets } from '../data/stylePresets';
-
-const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
+import { API_URL } from '../api/client';
 
 const StylePanel = ({ styles, onUpdateStyles, fontList, onApplyPreset, videoDimensions }) => {
     const [favorites, setFavorites] = useState(() => {
@@ -63,10 +62,11 @@ const StylePanel = ({ styles, onUpdateStyles, fontList, onApplyPreset, videoDime
                     </label>
                     <div className="flex gap-1.5 overflow-x-auto pb-2 custom-scrollbar">
                         {(stylePresets || []).map((preset) => (
-                            <div
+                            <button
                                 key={preset.name}
-                                className="flex-shrink-0 w-24 bg-zinc-800 hover:bg-zinc-700 rounded-lg p-2 cursor-pointer transition-colors border border-zinc-700 hover:border-zinc-500"
+                                className="flex-shrink-0 w-24 bg-zinc-800 hover:bg-zinc-700 rounded-lg p-2 cursor-pointer transition-colors border border-zinc-700 hover:border-zinc-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 text-left"
                                 onClick={() => handleApplyPreset(preset)}
+                                aria-label={`Apply preset: ${preset.name}`}
                             >
                                 <div
                                     className="text-xs font-bold mb-1 truncate text-center"
@@ -84,7 +84,7 @@ const StylePanel = ({ styles, onUpdateStyles, fontList, onApplyPreset, videoDime
                                 <div className="text-[9px] text-gray-500 text-center truncate mt-0.5">
                                     {preset.description}
                                 </div>
-                            </div>
+                            </button>
                         ))}
                     </div>
                 </div>
@@ -112,7 +112,9 @@ const StylePanel = ({ styles, onUpdateStyles, fontList, onApplyPreset, videoDime
                                         e.stopPropagation();
                                         toggleFavorite(font.name);
                                     }}
-                                    className={`transition-colors ${favorites.includes(font.name) ? 'text-yellow-400' : 'text-gray-500 hover:text-gray-300'}`}
+                                    className={`transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded ${favorites.includes(font.name) ? 'text-yellow-400' : 'text-gray-500 hover:text-gray-300'}`}
+                                    aria-label={favorites.includes(font.name) ? `Remove ${font.name} from favorites` : `Add ${font.name} to favorites`}
+                                    aria-pressed={favorites.includes(font.name)}
                                 >
                                     <Star size={14} fill={favorites.includes(font.name) ? "currentColor" : "none"} />
                                 </button>
@@ -122,7 +124,7 @@ const StylePanel = ({ styles, onUpdateStyles, fontList, onApplyPreset, videoDime
                 </div>
 
                 <div className="mb-4">
-                    <label className="text-xs text-gray-400 block mb-2">FONT SIZE ({styles.fontSize}px)</label>
+                    <label className="text-xs text-gray-400 block mb-2" id="font-size-label">FONT SIZE ({styles.fontSize}px)</label>
                     <input
                         type="range"
                         min="20"
@@ -130,6 +132,10 @@ const StylePanel = ({ styles, onUpdateStyles, fontList, onApplyPreset, videoDime
                         value={styles.fontSize}
                         onChange={(e) => onUpdateStyles({ ...styles, fontSize: parseInt(e.target.value) })}
                         className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                        aria-labelledby="font-size-label"
+                        aria-valuemin={20}
+                        aria-valuemax={200}
+                        aria-valuenow={styles.fontSize}
                     />
                 </div>
 
@@ -137,11 +143,13 @@ const StylePanel = ({ styles, onUpdateStyles, fontList, onApplyPreset, videoDime
                     <label className="text-xs text-gray-400 block mb-2">TEXT COLOR</label>
                     <div className="flex gap-2">
                         {['#FFFFFF', '#FFFF00', '#00FFFF', '#FF00FF', '#FF0000', '#00FF00'].map(color => (
-                            <div
+                            <button
                                 key={color}
-                                className={`w-6 h-6 rounded-full cursor-pointer ring-2 ${styles.textColor === color ? 'ring-blue-500' : 'ring-transparent'}`}
+                                className={`w-6 h-6 rounded-full cursor-pointer ring-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 focus-visible:ring-offset-gray-900 ${styles.textColor === color ? 'ring-blue-500' : 'ring-transparent'}`}
                                 style={{ backgroundColor: color }}
                                 onClick={() => onUpdateStyles({ ...styles, textColor: color })}
+                                aria-label={`Text color: ${color}`}
+                                aria-pressed={styles.textColor === color}
                             />
                         ))}
                     </div>
@@ -151,7 +159,9 @@ const StylePanel = ({ styles, onUpdateStyles, fontList, onApplyPreset, videoDime
                     <label className="text-xs text-gray-400 block mb-2">CAPS LOCK</label>
                     <button
                         onClick={() => onUpdateStyles({ ...styles, uppercase: !styles.uppercase })}
-                        className={`px-4 py-2 rounded text-xs font-bold transition-all ${styles.uppercase ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400'}`}
+                        className={`px-4 py-2 rounded text-xs font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${styles.uppercase ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400'}`}
+                        aria-label="Toggle uppercase"
+                        aria-pressed={styles.uppercase}
                     >
                         {styles.uppercase ? 'ON' : 'OFF'}
                     </button>
@@ -188,14 +198,14 @@ const StylePanel = ({ styles, onUpdateStyles, fontList, onApplyPreset, videoDime
                         </div>
                     </div>
                     {videoDimensions && (
-                        <div className="text-[9px] text-gray-600 mt-1">
+                        <div className="text-[9px] text-gray-500 mt-1">
                             Video: {videoDimensions.width}×{videoDimensions.height} | Center: 0,0 | Bottom: 0,{-Math.round(videoDimensions.height / 2)}
                         </div>
                     )}
                 </div>
 
                 <div className="mb-4">
-                    <label className="text-xs text-gray-400 block mb-2">OUTLINE ({styles.outlineWidth ?? 2})</label>
+                    <label className="text-xs text-gray-400 block mb-2" id="outline-label">OUTLINE ({styles.outlineWidth ?? 2})</label>
                     <input
                         type="range"
                         min="0"
@@ -204,11 +214,13 @@ const StylePanel = ({ styles, onUpdateStyles, fontList, onApplyPreset, videoDime
                         value={styles.outlineWidth ?? 2}
                         onChange={(e) => onUpdateStyles({ ...styles, outlineWidth: parseFloat(e.target.value) })}
                         className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                        aria-labelledby="outline-label"
+                        aria-valuenow={styles.outlineWidth ?? 2}
                     />
                 </div>
 
                 <div className="mb-4">
-                    <label className="text-xs text-gray-400 block mb-2">SHADOW ({styles.shadowDepth ?? 2})</label>
+                    <label className="text-xs text-gray-400 block mb-2" id="shadow-label">SHADOW ({styles.shadowDepth ?? 2})</label>
                     <input
                         type="range"
                         min="0"
@@ -217,6 +229,8 @@ const StylePanel = ({ styles, onUpdateStyles, fontList, onApplyPreset, videoDime
                         value={styles.shadowDepth ?? 2}
                         onChange={(e) => onUpdateStyles({ ...styles, shadowDepth: parseFloat(e.target.value) })}
                         className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                        aria-labelledby="shadow-label"
+                        aria-valuenow={styles.shadowDepth ?? 2}
                     />
                 </div>
             </div>

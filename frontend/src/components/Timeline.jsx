@@ -274,7 +274,7 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
         : (currentTime || 0) * pixelsPerSecond - 7;
 
     return (
-        <div className="bg-gray-950 border-t border-gray-800 h-full flex flex-col overflow-hidden">
+        <div className="bg-gray-950 border-t border-gray-800 h-full flex flex-col overflow-hidden" role="region" aria-label="Timeline">
             <div className="flex justify-between items-center px-4 py-2 border-b border-gray-800 bg-gray-900/50">
                 <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Timeline</span>
                 <div className="flex items-center gap-4">
@@ -313,7 +313,7 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
                     {Array.from({ length: Math.ceil(duration || 0) + 1 }).map((_, i) => (
                         <div
                             key={i}
-                            className="absolute border-l border-gray-800/60 h-full text-[9px] text-gray-600 pl-1 pt-1 timeline-bg"
+                            className="absolute border-l border-gray-800/60 h-full text-[9px] text-gray-500 pl-1 pt-1 timeline-bg"
                             style={{ left: i * pixelsPerSecond }}
                         >
                             {i}s
@@ -379,6 +379,13 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
                         e.stopPropagation();
                         setIsDraggingPlayhead(true);
                     }}
+                    role="slider"
+                    aria-label="Playhead position"
+                    aria-valuemin={0}
+                    aria-valuemax={duration}
+                    aria-valuenow={Math.round(currentTime * 100) / 100}
+                    aria-valuetext={`${currentTime.toFixed(2)} seconds`}
+                    tabIndex={0}
                 >
                     <div className="absolute left-[7px] top-0 bottom-0 w-px bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.5)]" />
                     <svg className="absolute -top-0.5" style={{ left: 2 }} width="11" height="8" viewBox="0 0 11 8">

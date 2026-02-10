@@ -6,3 +6,7 @@ python-dotenv
 numpy
 anthropic
 aiosqlite
+slowapi
+pytest
+pytest-asyncio
+httpx

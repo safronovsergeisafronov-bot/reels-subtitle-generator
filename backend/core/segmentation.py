@@ -96,7 +96,59 @@ def segment_subtitles(words: List[Dict]) -> List[Dict]:
         })
 
     # --- POST-PROCESSING ---
-    
+
+    # 0. Split segments where two sentences are merged (e.g. "в мире Как это вообще")
+    # Detect: a lowercase word followed by an Uppercase word without sentence-ending punctuation
+    split_subtitles = []
+    for sub in raw_subtitles:
+        words_in_sub = sub["words"]
+        if len(words_in_sub) < 2:
+            split_subtitles.append(sub)
+            continue
+
+        split_points = []
+        for j in range(1, len(words_in_sub)):
+            prev_word_text = words_in_sub[j - 1]["word"]
+            curr_word_text = words_in_sub[j]["word"]
+            if not prev_word_text or not curr_word_text:
+                continue
+            # Previous word does NOT end with sentence punctuation
+            prev_ends_sentence = prev_word_text[-1] in ".?!"
+            # Current word starts with uppercase letter
+            curr_starts_upper = curr_word_text[0].isupper()
+            # Previous word ends with lowercase or digit (not an abbreviation/acronym)
+            prev_ends_lower = prev_word_text.rstrip(".,;:").lower()[-1:].islower() if prev_word_text.rstrip(".,;:") else False
+
+            if not prev_ends_sentence and curr_starts_upper and prev_ends_lower:
+                split_points.append(j)
+
+        if not split_points:
+            split_subtitles.append(sub)
+        else:
+            # Split at each point
+            prev_idx = 0
+            for sp in split_points:
+                chunk = words_in_sub[prev_idx:sp]
+                if chunk:
+                    split_subtitles.append({
+                        "start": chunk[0]["start"],
+                        "end": chunk[-1]["end"],
+                        "text": get_segment_text(chunk),
+                        "words": chunk,
+                    })
+                prev_idx = sp
+            # Remaining words after last split point
+            chunk = words_in_sub[prev_idx:]
+            if chunk:
+                split_subtitles.append({
+                    "start": chunk[0]["start"],
+                    "end": chunk[-1]["end"],
+                    "text": get_segment_text(chunk),
+                    "words": chunk,
+                })
+
+    raw_subtitles = split_subtitles
+
     # 1. Fix Hanging Prepositions
     # Move last word of segment i to segment i+1 if it is a short preposition
     # Iterate backwards to safely move items
