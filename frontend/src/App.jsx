@@ -513,6 +513,13 @@ function AppContent() {
 
   const handleToggleSidebar = useCallback(() => setSidebarOpen(prev => !prev), []);
 
+  const handleDeleteProject = useCallback(() => {
+    setProjectId(null);
+    setProjectName('');
+    setSubtitles([]);
+    toast({ type: 'info', message: 'Проект удалён' });
+  }, [setSubtitles, toast]);
+
   const handleOpenProject = useCallback(async (pid) => {
     try {
       const res = await fetch(`${BASE_URL}/api/projects/${pid}`);
@@ -555,6 +562,8 @@ function AppContent() {
           isOpen={sidebarOpen}
           onToggle={handleToggleSidebar}
           onOpenProject={handleOpenProject}
+          onDeleteProject={handleDeleteProject}
+          currentProjectId={projectId}
         />
 
         {/* Left Panel - Video & Timeline */}

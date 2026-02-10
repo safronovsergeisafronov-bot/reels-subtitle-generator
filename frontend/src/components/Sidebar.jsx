@@ -2,11 +2,11 @@ import React, { memo, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Menu, X, LayoutDashboard, FolderOpen, Settings, Clock, Film,
-  Key, Globe, Eye, EyeOff, Save, Check, AlertCircle, ChevronRight,
+  Key, Globe, Eye, EyeOff, Save, Check, AlertCircle, ChevronRight, Trash2,
 } from 'lucide-react';
 import { API_URL } from '../api/client';
 
-const Sidebar = memo(({ isOpen, onToggle, onOpenProject }) => {
+const Sidebar = memo(({ isOpen, onToggle, onOpenProject, onDeleteProject, currentProjectId }) => {
   const [activeSection, setActiveSection] = useState('projects');
   const [projects, setProjects] = useState([]);
   const [totalProjects, setTotalProjects] = useState(0);
@@ -80,6 +80,32 @@ const Sidebar = memo(({ isOpen, onToggle, onOpenProject }) => {
     }
   };
 
+  const [deletingId, setDeletingId] = useState(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+
+  const handleDeleteProject = useCallback(async (e, projectId) => {
+    e.stopPropagation();
+    if (confirmDeleteId !== projectId) {
+      setConfirmDeleteId(projectId);
+      setTimeout(() => setConfirmDeleteId(null), 3000);
+      return;
+    }
+    setDeletingId(projectId);
+    try {
+      const res = await fetch(`${API_URL}/projects/${projectId}`, { method: 'DELETE' });
+      if (res.ok) {
+        setProjects(prev => prev.filter(p => p.id !== projectId));
+        setTotalProjects(prev => prev - 1);
+        if (onDeleteProject && currentProjectId === projectId) {
+          onDeleteProject();
+        }
+      }
+    } catch {} finally {
+      setDeletingId(null);
+      setConfirmDeleteId(null);
+    }
+  }, [confirmDeleteId, onDeleteProject, currentProjectId]);
+
   const formatDate = (iso) => {
     const d = new Date(iso);
     return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -151,10 +177,10 @@ const Sidebar = memo(({ isOpen, onToggle, onOpenProject }) => {
             ) : (
               <div className="divide-y divide-gray-800/50">
                 {projects.map((project) => (
-                  <button
+                  <div
                     key={project.id}
                     onClick={() => onOpenProject(project.id)}
-                    className="w-full flex items-center gap-3 p-3 hover:bg-gray-800/50 transition-colors text-left group"
+                    className="w-full flex items-center gap-3 p-3 hover:bg-gray-800/50 transition-colors text-left group cursor-pointer"
                   >
                     <div className="w-8 h-8 bg-gray-800 rounded-lg flex items-center justify-center shrink-0">
                       <Film size={12} className="text-gray-500" />
@@ -167,8 +193,20 @@ const Sidebar = memo(({ isOpen, onToggle, onOpenProject }) => {
                         <span className="text-[9px] text-gray-600">{formatDate(project.updated_at)}</span>
                       </div>
                     </div>
-                    <ChevronRight size={12} className="text-gray-700 group-hover:text-gray-400 shrink-0" />
-                  </button>
+                    <button
+                      onClick={(e) => handleDeleteProject(e, project.id)}
+                      disabled={deletingId === project.id}
+                      className={`p-1.5 rounded shrink-0 transition-all ${
+                        confirmDeleteId === project.id
+                          ? 'bg-red-600 text-white'
+                          : 'text-gray-700 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100'
+                      } disabled:opacity-50`}
+                      title={confirmDeleteId === project.id ? 'Нажмите ещё раз для удаления' : 'Удалить проект'}
+                      aria-label="Удалить проект"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
                 ))}
               </div>
             )}

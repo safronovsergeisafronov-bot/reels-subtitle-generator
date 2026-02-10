@@ -9,20 +9,24 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
     const ppsRef = useRef(50);
     const [pixelsPerSecond, setPixelsPerSecond] = useState(50);
 
-    // Keep refs in sync for non-React event handlers
+    // Drag state — stored in ref for zero-rerender dragging
+    const dragRef = useRef(null);
+    const subtitlesRef = useRef(subtitles);
+
     useEffect(() => { currentTimeRef.current = currentTime; }, [currentTime]);
     useEffect(() => { ppsRef.current = pixelsPerSecond; }, [pixelsPerSecond]);
-    const SNAP_THRESHOLD = 0.15; // seconds
-    const [dragging, setDragging] = useState(null);
+    useEffect(() => { subtitlesRef.current = subtitles; }, [subtitles]);
+
+    const SNAP_THRESHOLD = 0.15;
     const [clipboard, setClipboard] = useState(null);
     const [selectedIndex, setSelectedIndex] = useState(null);
-    const [collisionIndex, setCollisionIndex] = useState(null);
     const [isDraggingPlayhead, setIsDraggingPlayhead] = useState(false);
+    // Force re-render counter (only incremented on drag end)
+    const [, setRenderTick] = useState(0);
 
-    // Snapping logic
-    const getSnapPoints = (excludeIndex) => {
+    const getSnapPoints = useCallback((excludeIndex, subs) => {
         const points = [0];
-        subtitles.forEach((sub, idx) => {
+        subs.forEach((sub, idx) => {
             if (idx !== excludeIndex) {
                 points.push(sub.start);
                 points.push(sub.end);
@@ -30,121 +34,184 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
         });
         if (duration) points.push(duration);
         return points;
-    };
+    }, [duration]);
 
-    const snapTo = (value, excludeIndex) => {
-        const points = getSnapPoints(excludeIndex);
+    const snapTo = useCallback((value, excludeIndex, subs) => {
+        const points = getSnapPoints(excludeIndex, subs);
         for (const point of points) {
-            if (Math.abs(value - point) < SNAP_THRESHOLD) {
-                return point;
-            }
+            if (Math.abs(value - point) < SNAP_THRESHOLD) return point;
         }
         return value;
-    };
+    }, [getSnapPoints]);
 
-    // Snap time to subtitle edges
-    const snapPlayhead = (time) => {
-        const PLAYHEAD_SNAP = 0.15;
-        for (const sub of subtitles) {
-            if (Math.abs(time - sub.start) < PLAYHEAD_SNAP) return sub.start;
-            if (Math.abs(time - sub.end) < PLAYHEAD_SNAP) return sub.end;
+    const snapPlayhead = useCallback((time) => {
+        const subs = subtitlesRef.current;
+        for (const sub of subs) {
+            if (Math.abs(time - sub.start) < 0.15) return sub.start;
+            if (Math.abs(time - sub.end) < 0.15) return sub.end;
         }
         return time;
-    };
+    }, []);
 
-    // Collision detection - returns the index of the colliding subtitle, or -1
-    const findCollision = (start, end, excludeIndex) => {
-        for (let i = 0; i < subtitles.length; i++) {
+    // Clamp to prevent overlap: returns [newStart, newEnd] that don't overlap neighbors
+    const clampNoOverlap = useCallback((start, end, excludeIndex, subs) => {
+        let s = start, e = end;
+        const dur = e - s;
+        // Find nearest prev and next subtitle boundaries
+        let prevEnd = 0;
+        let nextStart = duration || Infinity;
+        for (let i = 0; i < subs.length; i++) {
             if (i === excludeIndex) continue;
-            const other = subtitles[i];
-            if (start < other.end && end > other.start) {
-                return i;
+            if (subs[i].end <= start + 0.001 && subs[i].end > prevEnd) prevEnd = subs[i].end;
+            if (subs[i].start >= end - 0.001 && subs[i].start < nextStart) nextStart = subs[i].start;
+        }
+        // Also check all subs for true overlap and clamp
+        for (let i = 0; i < subs.length; i++) {
+            if (i === excludeIndex) continue;
+            // If our range overlaps this sub, clamp
+            if (s < subs[i].end && e > subs[i].start) {
+                // Decide which side to clamp to based on which is closer
+                const overlapLeft = subs[i].end - s;
+                const overlapRight = e - subs[i].start;
+                if (overlapLeft < overlapRight) {
+                    s = subs[i].end;
+                    e = s + dur;
+                } else {
+                    e = subs[i].start;
+                    s = e - dur;
+                }
             }
         }
-        return -1;
-    };
+        s = Math.max(0, s);
+        if (duration) e = Math.min(duration, e);
+        return [s, e];
+    }, [duration]);
 
-    const checkCollision = (start, end, excludeIndex) => {
-        return findCollision(start, end, excludeIndex) !== -1;
-    };
+    // Get DOM node for a subtitle block by index
+    const getSubNode = useCallback((index) => {
+        const timeline = timelineRef.current;
+        if (!timeline) return null;
+        return timeline.querySelector(`[data-sub-idx="${index}"]`);
+    }, []);
 
-    // Flash collision feedback
-    const flashCollision = (index) => {
-        setCollisionIndex(index);
-        setTimeout(() => setCollisionIndex(null), 300);
-    };
+    // Apply position to DOM directly (no React re-render)
+    const applyDomPosition = useCallback((index, start, end) => {
+        const node = getSubNode(index);
+        if (!node) return;
+        const pps = ppsRef.current;
+        node.style.left = `${start * pps}px`;
+        node.style.width = `${(end - start) * pps}px`;
+    }, [getSubNode]);
 
-    const handleMouseDown = (index, type, e) => {
+    // --- DRAG: subtitle blocks (move / resize) ---
+    const handleMouseDown = useCallback((index, type, e) => {
         e.stopPropagation();
+        e.preventDefault();
         setSelectedIndex(index);
-        const initialValue = type === 'move' ? subtitles[index].start : (type === 'start' ? subtitles[index].start : subtitles[index].end);
-        setDragging({ index, type, initialX: e.clientX, initialValue, originalSub: { ...subtitles[index] } });
-    };
+        const sub = subtitlesRef.current[index];
+        dragRef.current = {
+            index,
+            type,
+            initialX: e.clientX,
+            origStart: sub.start,
+            origEnd: sub.end,
+            lastStart: sub.start,
+            lastEnd: sub.end,
+        };
+        // Add dragging class to disable CSS transitions
+        const node = getSubNode(index);
+        if (node) node.style.transition = 'none';
+    }, [getSubNode]);
 
     useEffect(() => {
         const handleMouseMove = (e) => {
-            if (!dragging) return;
+            const drag = dragRef.current;
+            if (!drag) return;
 
-            const deltaX = e.clientX - dragging.initialX;
-            const deltaTime = deltaX / pixelsPerSecond;
-            const newSubtitles = [...subtitles];
-            const sub = { ...newSubtitles[dragging.index] };
-            const originalSub = dragging.originalSub;
+            const pps = ppsRef.current;
+            const deltaTime = (e.clientX - drag.initialX) / pps;
+            const subs = subtitlesRef.current;
+            const subDur = drag.origEnd - drag.origStart;
+            let newStart, newEnd;
 
-            let newStart = sub.start;
-            let newEnd = sub.end;
-
-            if (dragging.type === 'move') {
-                const subDuration = originalSub.end - originalSub.start;
-                newStart = Math.max(0, dragging.initialValue + deltaTime);
-                newStart = snapTo(newStart, dragging.index);
-                newEnd = newStart + subDuration;
-                // Also snap end
-                const snappedEnd = snapTo(newEnd, dragging.index);
+            if (drag.type === 'move') {
+                newStart = Math.max(0, drag.origStart + deltaTime);
+                newStart = snapTo(newStart, drag.index, subs);
+                newEnd = newStart + subDur;
+                const snappedEnd = snapTo(newEnd, drag.index, subs);
                 if (snappedEnd !== newEnd) {
                     newEnd = snappedEnd;
-                    newStart = newEnd - subDuration;
+                    newStart = newEnd - subDur;
                 }
-            } else if (dragging.type === 'start') {
-                newStart = Math.max(0, Math.min(sub.end - 0.1, dragging.initialValue + deltaTime));
-                newStart = snapTo(newStart, dragging.index);
-                if (newStart >= sub.end - 0.1) newStart = sub.end - 0.1;
-            } else if (dragging.type === 'end') {
-                newEnd = Math.max(sub.start + 0.1, Math.min(duration, dragging.initialValue + deltaTime));
-                newEnd = snapTo(newEnd, dragging.index);
-                if (newEnd <= sub.start + 0.1) newEnd = sub.start + 0.1;
+                // Clamp to prevent overlap
+                [newStart, newEnd] = clampNoOverlap(newStart, newEnd, drag.index, subs);
+            } else if (drag.type === 'start') {
+                newStart = Math.max(0, drag.origStart + deltaTime);
+                newStart = snapTo(newStart, drag.index, subs);
+                newEnd = drag.origEnd;
+                // Min duration 0.1s
+                if (newStart >= newEnd - 0.1) newStart = newEnd - 0.1;
+                // Prevent overlap with previous
+                for (let i = 0; i < subs.length; i++) {
+                    if (i === drag.index) continue;
+                    if (subs[i].end > newStart && subs[i].start < newEnd) {
+                        newStart = Math.max(newStart, subs[i].end);
+                    }
+                }
+                if (newStart >= newEnd - 0.1) newStart = newEnd - 0.1;
+            } else if (drag.type === 'end') {
+                newEnd = Math.max(drag.origStart + 0.1, drag.origEnd + deltaTime);
+                if (duration) newEnd = Math.min(duration, newEnd);
+                newEnd = snapTo(newEnd, drag.index, subs);
+                newStart = drag.origStart;
+                // Min duration 0.1s
+                if (newEnd <= newStart + 0.1) newEnd = newStart + 0.1;
+                // Prevent overlap with next
+                for (let i = 0; i < subs.length; i++) {
+                    if (i === drag.index) continue;
+                    if (subs[i].start < newEnd && subs[i].end > newStart) {
+                        newEnd = Math.min(newEnd, subs[i].start);
+                    }
+                }
+                if (newEnd <= newStart + 0.1) newEnd = newStart + 0.1;
             }
 
-            // Collision prevention with flash feedback
-            const collidingIdx = findCollision(newStart, newEnd, dragging.index);
-            if (collidingIdx !== -1) {
-                flashCollision(collidingIdx);
-                return; // Don't apply changes that cause collision
-            }
+            drag.lastStart = newStart;
+            drag.lastEnd = newEnd;
 
-            sub.start = newStart;
-            sub.end = newEnd;
-
-            newSubtitles[dragging.index] = sub;
-            onUpdateSubtitles(newSubtitles);
+            // Direct DOM update — no React re-render
+            applyDomPosition(drag.index, newStart, newEnd);
         };
 
         const handleMouseUp = () => {
-            setDragging(null);
+            const drag = dragRef.current;
+            if (!drag) return;
+
+            // Restore CSS transitions
+            const node = getSubNode(drag.index);
+            if (node) node.style.transition = '';
+
+            // Commit to React state (triggers useHistory snapshot)
+            const subs = [...subtitlesRef.current];
+            subs[drag.index] = {
+                ...subs[drag.index],
+                start: Math.round(drag.lastStart * 1000) / 1000,
+                end: Math.round(drag.lastEnd * 1000) / 1000,
+            };
+            dragRef.current = null;
+            onUpdateSubtitles(subs);
+            setRenderTick(t => t + 1);
         };
 
-        if (dragging) {
-            window.addEventListener('mousemove', handleMouseMove);
-            window.addEventListener('mouseup', handleMouseUp);
-        }
-
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
         return () => {
             window.removeEventListener('mousemove', handleMouseMove);
             window.removeEventListener('mouseup', handleMouseUp);
         };
-    }, [dragging, subtitles, onUpdateSubtitles, duration, pixelsPerSecond]);
+    }, [duration, snapTo, clampNoOverlap, applyDomPosition, getSubNode, onUpdateSubtitles]);
 
-    // Playhead drag logic — direct DOM manipulation + rAF throttled seeking for max smoothness
+    // --- Playhead drag — direct DOM + rAF throttled seek ---
     useEffect(() => {
         if (!isDraggingPlayhead) return;
 
@@ -152,37 +219,28 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
             if (!timelineRef.current) return;
             const rect = timelineRef.current.getBoundingClientRect();
             const x = e.clientX - rect.left + timelineRef.current.scrollLeft;
-            let time = Math.max(0, Math.min(duration, x / pixelsPerSecond));
+            let time = Math.max(0, Math.min(duration, x / ppsRef.current));
             time = snapPlayhead(time);
-
             dragTimeRef.current = time;
 
-            // Immediate visual update via DOM — no React re-render
             if (playheadRef.current) {
-                playheadRef.current.style.left = `${time * pixelsPerSecond - 7}px`;
+                playheadRef.current.style.left = `${time * ppsRef.current - 7}px`;
             }
 
-            // Throttled video seek via requestAnimationFrame
             if (!rafRef.current) {
                 rafRef.current = requestAnimationFrame(() => {
-                    if (dragTimeRef.current !== null) {
-                        onSeek(dragTimeRef.current);
-                    }
+                    if (dragTimeRef.current !== null) onSeek(dragTimeRef.current);
                     rafRef.current = null;
                 });
             }
         };
 
         const handleMouseUp = () => {
-            // Final seek to exact position
             if (dragTimeRef.current !== null) {
                 onSeek(dragTimeRef.current);
                 dragTimeRef.current = null;
             }
-            if (rafRef.current) {
-                cancelAnimationFrame(rafRef.current);
-                rafRef.current = null;
-            }
+            if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
             setIsDraggingPlayhead(false);
         };
 
@@ -191,18 +249,14 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
         return () => {
             window.removeEventListener('mousemove', handleMouseMove);
             window.removeEventListener('mouseup', handleMouseUp);
-            if (rafRef.current) {
-                cancelAnimationFrame(rafRef.current);
-                rafRef.current = null;
-            }
+            if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
         };
-    }, [isDraggingPlayhead, duration, pixelsPerSecond, onSeek, subtitles]);
+    }, [isDraggingPlayhead, duration, onSeek, snapPlayhead]);
 
-    // Cmd/Ctrl + scroll wheel zoom — centered on playhead position
+    // Zoom (Cmd/Ctrl + scroll)
     useEffect(() => {
         const el = timelineRef.current;
         if (!el) return;
-
         const handleWheel = (e) => {
             if (e.metaKey || e.ctrlKey) {
                 e.preventDefault();
@@ -211,67 +265,46 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
                 const delta = e.deltaY > 0 ? -5 : 5;
                 const newPps = Math.max(20, Math.min(200, oldPps + delta));
                 if (newPps === oldPps) return;
-
-                // Remember playhead's viewport-relative position before zoom
                 const playheadViewportX = ct * oldPps - el.scrollLeft;
-
                 setPixelsPerSecond(newPps);
                 ppsRef.current = newPps;
-
-                // After render, adjust scroll so playhead stays at same viewport position
-                requestAnimationFrame(() => {
-                    el.scrollLeft = ct * newPps - playheadViewportX;
-                });
+                requestAnimationFrame(() => { el.scrollLeft = ct * newPps - playheadViewportX; });
             }
         };
-
         el.addEventListener('wheel', handleWheel, { passive: false });
         return () => el.removeEventListener('wheel', handleWheel);
     }, []);
 
-    // Copy/Paste keyboard handlers
+    // Keyboard: copy/paste/delete
     useEffect(() => {
         const handleKeyDown = (e) => {
             if (selectedIndex === null) return;
-
-            // Cmd/Ctrl + C - Copy
             if ((e.metaKey || e.ctrlKey) && e.key === 'c') {
                 e.preventDefault();
                 setClipboard({ ...subtitles[selectedIndex] });
             }
-
-            // Cmd/Ctrl + V - Paste
             if ((e.metaKey || e.ctrlKey) && e.key === 'v' && clipboard) {
                 e.preventDefault();
-                const newSub = { ...clipboard };
-                // Find a spot after all existing subtitles
                 const lastEnd = subtitles.reduce((max, sub) => Math.max(max, sub.end), 0);
                 const subDuration = clipboard.end - clipboard.start;
-                newSub.start = lastEnd + 0.1;
-                newSub.end = newSub.start + subDuration;
-
-                if (!checkCollision(newSub.start, newSub.end, -1)) {
-                    onUpdateSubtitles([...subtitles, newSub]);
-                }
+                const newSub = { ...clipboard, start: lastEnd + 0.1, end: lastEnd + 0.1 + subDuration };
+                onUpdateSubtitles([...subtitles, newSub]);
             }
-
-            // Delete key - Remove subtitle
             if (e.key === 'Backspace' || e.key === 'Delete') {
                 e.preventDefault();
-                const newSubtitles = subtitles.filter((_, idx) => idx !== selectedIndex);
-                onUpdateSubtitles(newSubtitles);
+                onUpdateSubtitles(subtitles.filter((_, idx) => idx !== selectedIndex));
                 setSelectedIndex(null);
             }
         };
-
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [selectedIndex, clipboard, subtitles, onUpdateSubtitles]);
 
-    // Compute playhead position: during drag use ref, otherwise use prop
     const playheadLeft = (isDraggingPlayhead && dragTimeRef.current !== null)
         ? dragTimeRef.current * pixelsPerSecond - 7
         : (currentTime || 0) * pixelsPerSecond - 7;
+
+    const timelineWidth = Math.max(typeof window !== 'undefined' ? window.innerWidth : 1000, (duration || 0) * pixelsPerSecond);
 
     return (
         <div className="bg-gray-950 border-t border-gray-800 h-full flex flex-col overflow-hidden" role="region" aria-label="Timeline">
@@ -292,7 +325,6 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
                 ref={timelineRef}
                 className="flex-1 relative overflow-x-auto overflow-y-hidden select-none custom-scrollbar"
                 onMouseDown={(e) => {
-                    // Only respond to clicks on the timeline background, not subtitle blocks
                     if (e.target !== e.currentTarget && !e.target.classList.contains('timeline-bg')) return;
                     if (!timelineRef.current) return;
                     const rect = timelineRef.current.getBoundingClientRect();
@@ -301,15 +333,12 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
                     onSeek(time);
                     setIsDraggingPlayhead(true);
                     setSelectedIndex(null);
-                    // Immediately position playhead via DOM
-                    if (playheadRef.current) {
-                        playheadRef.current.style.left = `${time * pixelsPerSecond - 7}px`;
-                    }
+                    if (playheadRef.current) playheadRef.current.style.left = `${time * pixelsPerSecond - 7}px`;
                 }}
                 style={{ cursor: 'crosshair' }}
             >
                 {/* Time Markers */}
-                <div className="absolute top-0 left-0 h-6 flex border-b border-gray-800 timeline-bg" style={{ width: Math.max(window.innerWidth, (duration || 0) * pixelsPerSecond) }}>
+                <div className="absolute top-0 left-0 h-6 flex border-b border-gray-800 timeline-bg" style={{ width: timelineWidth }}>
                     {Array.from({ length: Math.ceil(duration || 0) + 1 }).map((_, i) => (
                         <div
                             key={i}
@@ -319,12 +348,11 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
                             {i}s
                         </div>
                     ))}
-                    {/* Minor tick marks */}
                     {Array.from({ length: Math.ceil(duration || 0) * 2 + 1 }).map((_, i) => {
                         if (i % 2 === 0) return null;
                         return (
                             <div
-                                key={`minor-${i}`}
+                                key={`m${i}`}
                                 className="absolute w-px h-2 bg-gray-800/40 bottom-0 timeline-bg"
                                 style={{ left: (i * 0.5) * pixelsPerSecond }}
                             />
@@ -337,8 +365,8 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
                     {(subtitles || []).map((sub, index) => (
                         <div
                             key={index}
-                            className={`absolute h-10 rounded-lg transition-all duration-200 group
-                                ${collisionIndex === index ? 'animate-pulse ring-2 ring-red-500' : ''}
+                            data-sub-idx={index}
+                            className={`absolute h-10 rounded-lg group
                                 ${selectedIndex === index
                                     ? 'bg-gradient-to-r from-blue-600/80 to-cyan-600/80 border border-cyan-400/60 text-white z-20 shadow-lg shadow-cyan-500/20'
                                     : currentTime >= sub.start && currentTime <= sub.end
@@ -348,29 +376,29 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
                             style={{
                                 left: sub.start * pixelsPerSecond,
                                 width: (sub.end - sub.start) * pixelsPerSecond,
+                                willChange: 'left, width',
                             }}
                             onMouseDown={(e) => handleMouseDown(index, 'move', e)}
                         >
                             {/* Left resize handle */}
                             <div
-                                className="absolute left-0 top-0 bottom-0 w-1.5 cursor-ew-resize rounded-l-lg
-                                    bg-white/0 hover:bg-white/30 group-hover:bg-white/10 transition-all duration-150 z-20"
+                                className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize rounded-l-lg
+                                    bg-white/0 hover:bg-white/30 group-hover:bg-white/10 z-20"
                                 onMouseDown={(e) => handleMouseDown(index, 'start', e)}
                             />
                             {/* Right resize handle */}
                             <div
-                                className="absolute right-0 top-0 bottom-0 w-1.5 cursor-ew-resize rounded-r-lg
-                                    bg-white/0 hover:bg-white/30 group-hover:bg-white/10 transition-all duration-150 z-20"
+                                className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize rounded-r-lg
+                                    bg-white/0 hover:bg-white/30 group-hover:bg-white/10 z-20"
                                 onMouseDown={(e) => handleMouseDown(index, 'end', e)}
                             />
-
-                            <span className="truncate w-full text-center font-medium text-[10px] leading-tight">{sub.text}</span>
-                            <span className="text-[8px] opacity-50 font-mono">{(sub.end - sub.start).toFixed(1)}s</span>
+                            <span className="truncate w-full text-center font-medium text-[10px] leading-tight pointer-events-none">{sub.text}</span>
+                            <span className="text-[8px] opacity-50 font-mono pointer-events-none">{(sub.end - sub.start).toFixed(1)}s</span>
                         </div>
                     ))}
                 </div>
 
-                {/* Playhead — ref-driven for smooth dragging */}
+                {/* Playhead */}
                 <div
                     ref={playheadRef}
                     className="absolute top-0 bottom-0 z-30"

@@ -9,7 +9,7 @@ export const stylePresets = [
     outlineColor: "#000000",
     shadowDepth: 0,
     bold: false,
-    position: { x: 0, y: -800 },
+    position: { x: 0, y: -550 },
     description: "CapCut style, Inter Tight font",
   },
   {
@@ -17,12 +17,12 @@ export const stylePresets = [
     fontFamily: "helvetica_bold",
     fontSize: 85,
     color: "#FFFFFF",
-    uppercase: true,
+    uppercase: false,
     outlineWidth: 4,
     outlineColor: "#000000",
     shadowDepth: 0,
     bold: true,
-    position: { x: 0, y: -800 },
+    position: { x: 0, y: -550 },
     description: "CapCut style, Helvetica Bold",
   },
 ];
