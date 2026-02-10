@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { API_URL } from '../api/client';
 
-const Sidebar = memo(({ isOpen, onToggle, onOpenProject, onDeleteProject, currentProjectId }) => {
+const Sidebar = memo(({ isOpen, onToggle, onOpenProject, onDeleteProject, currentProjectId, isMobile }) => {
   const [activeSection, setActiveSection] = useState('projects');
   const [projects, setProjects] = useState([]);
   const [totalProjects, setTotalProjects] = useState(0);
@@ -126,7 +126,19 @@ const Sidebar = memo(({ isOpen, onToggle, onOpenProject, onDeleteProject, curren
   if (!isOpen) return null;
 
   return (
-    <div className="flex flex-col bg-gray-900 border-r border-gray-800 w-72 shrink-0 h-full overflow-hidden">
+    <>
+      {/* Backdrop for mobile */}
+      {isMobile && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40"
+          onClick={onToggle}
+        />
+      )}
+      <div className={`flex flex-col bg-gray-900 border-r border-gray-800 h-full overflow-hidden ${
+        isMobile
+          ? 'fixed inset-y-0 left-0 z-50 w-[min(288px,85vw)] sidebar-slide-in shadow-2xl'
+          : 'w-72 shrink-0'
+      }`}>
       {/* Header */}
       <div className="flex items-center justify-between p-3 border-b border-gray-800">
         <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Профиль</span>
@@ -333,6 +345,7 @@ const Sidebar = memo(({ isOpen, onToggle, onOpenProject, onDeleteProject, curren
         )}
       </div>
     </div>
+    </>
   );
 });
 

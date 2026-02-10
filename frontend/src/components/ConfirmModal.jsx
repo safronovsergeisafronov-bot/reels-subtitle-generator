@@ -81,7 +81,7 @@ function ConfirmModalInner({ modal, onClose }) {
         if (e.target === e.currentTarget) onClose(modal.type === 'prompt' ? null : false);
       }}
     >
-      <div className="bg-gray-900 rounded-xl p-6 w-96 border border-gray-700 shadow-2xl">
+      <div className="bg-gray-900 rounded-xl p-6 w-full max-w-sm mx-4 border border-gray-700 shadow-2xl">
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center gap-2">
             {modal.destructive && <AlertTriangle size={18} className="text-red-400" />}

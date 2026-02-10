@@ -16,9 +16,11 @@ import { useModal } from './components/ConfirmModal';
 import { useHistory } from './hooks/useHistory';
 import { useAutoSave, loadAutoSave } from './hooks/useAutoSave';
 import { stylePresets } from './data/stylePresets';
+import { useIsMobile } from './hooks/useIsMobile';
 import { API_URL, WS_URL, BASE_URL } from './api/client';
 
 function AppContent() {
+  const { isMobile } = useIsMobile();
   const { toast } = useToast();
   const { prompt: modalPrompt } = useModal();
   const [searchParams] = useSearchParams();
@@ -47,6 +49,7 @@ function AppContent() {
   const [timelineHeight, setTimelineHeight] = useState(144);
   const [isResizingTimeline, setIsResizingTimeline] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [mobileTimelineOpen, setMobileTimelineOpen] = useState(false);
 
   // Video controls state
   const [playbackRate, setPlaybackRate] = useState(1);
@@ -584,7 +587,7 @@ function AppContent() {
         wsUrl={WS_URL}
         onCancel={handleCancelExport}
       />
-      <div className={`flex h-screen bg-gray-950 text-white overflow-hidden font-sans ${isResizing || isResizingTimeline ? 'select-none' : ''}`}>
+      <div className={`flex ${isMobile ? 'flex-col' : ''} h-screen bg-gray-950 text-white overflow-hidden font-sans max-w-[1920px] mx-auto ${isResizing || isResizingTimeline ? 'select-none' : ''}`}>
         {/* Sidebar */}
         <Sidebar
           isOpen={sidebarOpen}
@@ -592,13 +595,14 @@ function AppContent() {
           onOpenProject={handleOpenProject}
           onDeleteProject={handleDeleteProject}
           currentProjectId={projectId}
+          isMobile={isMobile}
         />
 
         {/* Left Panel - Video & Timeline */}
         <div
           ref={leftPanelRef}
-          className={`flex flex-col p-4 border-r border-gray-800 transition-colors duration-200 ${isDragging ? 'bg-indigo-900/20 border-2 border-dashed border-indigo-500/50' : ''}`}
-          style={{ width: `${leftPanelWidth}%` }}
+          className={`flex flex-col ${isMobile ? 'p-2' : 'p-4 border-r border-gray-800'} transition-colors duration-200 ${isDragging ? 'bg-indigo-900/20 border-2 border-dashed border-indigo-500/50' : ''}`}
+          style={isMobile ? undefined : { width: `${leftPanelWidth}%` }}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
@@ -619,10 +623,11 @@ function AppContent() {
             onExport={handleExport}
             onSaveProject={handleSaveProject}
             onToggleSidebar={handleToggleSidebar}
+            isMobile={isMobile}
           />
 
           <ErrorBoundary fallbackTitle="Video player error">
-            <div className="flex-1 flex items-center justify-center bg-gray-950 rounded-2xl border border-gray-950 relative group overflow-hidden min-h-0">
+            <div className={`${isMobile ? '' : 'flex-1'} flex items-center justify-center bg-gray-950 rounded-2xl border border-gray-950 relative group overflow-hidden min-h-0`}>
               <VideoPlayer
                 ref={videoRef}
                 src={videoSrc}
@@ -645,12 +650,14 @@ function AppContent() {
             </div>
           </ErrorBoundary>
 
-          <VideoInfoBar
-            videoSrc={videoSrc}
-            videoDimensions={videoDimensions}
-            duration={duration}
-            subtitleStyles={subtitleStyles}
-          />
+          {!isMobile && (
+            <VideoInfoBar
+              videoSrc={videoSrc}
+              videoDimensions={videoDimensions}
+              duration={duration}
+              subtitleStyles={subtitleStyles}
+            />
+          )}
 
           {/* Video Controls */}
           {videoSrc && (
@@ -666,36 +673,45 @@ function AppContent() {
               onVolumeChange={handleVolumeChange}
               isMuted={isMuted}
               onMuteToggle={handleMuteToggle}
+              isMobile={isMobile}
+              mobileTimelineOpen={mobileTimelineOpen}
+              onToggleTimeline={() => setMobileTimelineOpen(prev => !prev)}
             />
           )}
 
-          {/* Timeline resize handle */}
-          <div
-            className={`h-3 flex items-center justify-center cursor-row-resize group shrink-0 border-y transition-colors ${isResizingTimeline ? 'bg-indigo-500/20 border-indigo-500/40' : 'bg-gray-900/50 border-gray-800 hover:bg-gray-800/80 hover:border-gray-700'}`}
-            onMouseDown={() => setIsResizingTimeline(true)}
-          >
-            <div className={`w-12 h-1 rounded-full transition-colors ${isResizingTimeline ? 'bg-indigo-400' : 'bg-gray-600 group-hover:bg-gray-400'}`} />
-          </div>
+          {/* Timeline resize handle - desktop only */}
+          {!isMobile && (
+            <div
+              className={`h-3 flex items-center justify-center cursor-row-resize group shrink-0 border-y transition-colors ${isResizingTimeline ? 'bg-indigo-500/20 border-indigo-500/40' : 'bg-gray-900/50 border-gray-800 hover:bg-gray-800/80 hover:border-gray-700'}`}
+              onMouseDown={() => setIsResizingTimeline(true)}
+            >
+              <div className={`w-12 h-1 rounded-full transition-colors ${isResizingTimeline ? 'bg-indigo-400' : 'bg-gray-600 group-hover:bg-gray-400'}`} />
+            </div>
+          )}
 
           {/* Timeline */}
-          <div style={{ height: timelineHeight, flexShrink: 0 }}>
-            <Timeline
-              subtitles={subtitles}
-              currentTime={currentTime}
-              duration={duration}
-              onUpdateSubtitles={setSubtitles}
-              onSeek={handleSeek}
-            />
-          </div>
+          {(!isMobile || mobileTimelineOpen) && (
+            <div style={{ height: isMobile ? 100 : timelineHeight, flexShrink: 0 }}>
+              <Timeline
+                subtitles={subtitles}
+                currentTime={currentTime}
+                duration={duration}
+                onUpdateSubtitles={setSubtitles}
+                onSeek={handleSeek}
+              />
+            </div>
+          )}
         </div>
 
-        {/* Resize Handle */}
-        <div
-          className={`w-1 cursor-col-resize hover:bg-indigo-500 transition-colors ${isResizing ? 'bg-indigo-500' : 'bg-transparent'} flex-shrink-0`}
-          onMouseDown={handleResizeStart}
-        >
-          <div className="w-full h-full" />
-        </div>
+        {/* Resize Handle - desktop only */}
+        {!isMobile && (
+          <div
+            className={`w-1 cursor-col-resize hover:bg-indigo-500 transition-colors ${isResizing ? 'bg-indigo-500' : 'bg-transparent'} flex-shrink-0`}
+            onMouseDown={handleResizeStart}
+          >
+            <div className="w-full h-full" />
+          </div>
+        )}
 
         {/* Right Panel - Subtitles & Styles */}
         <ErrorBoundary fallbackTitle="Panel error">
@@ -716,6 +732,7 @@ function AppContent() {
             onUndo={undo}
             onRedo={redo}
             leftPanelWidth={leftPanelWidth}
+            isMobile={isMobile}
           />
         </ErrorBoundary>
       </div>

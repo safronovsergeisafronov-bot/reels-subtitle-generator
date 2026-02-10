@@ -91,11 +91,11 @@ const StylePanel = ({ styles, onUpdateStyles, fontList, onApplyPreset, videoDime
 
                 <div className="mb-4">
                     <label className="text-xs text-gray-400 block mb-2">FONT FAMILY</label>
-                    <div className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700 max-h-48 overflow-y-auto">
+                    <div className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700 max-h-36 md:max-h-48 overflow-y-auto">
                         {sortedFonts.map((font) => (
                             <div
                                 key={font.name}
-                                className={`flex items-center justify-between p-1.5 cursor-pointer hover:bg-gray-700 transition-colors ${styles.fontFamily === font.name ? 'bg-blue-900/40' : ''}`}
+                                className={`flex items-center justify-between p-2.5 md:p-1.5 cursor-pointer hover:bg-gray-700 transition-colors ${styles.fontFamily === font.name ? 'bg-blue-900/40' : ''}`}
                                 onClick={() => onUpdateStyles({ ...styles, fontFamily: font.name })}
                             >
                                 <div className="flex items-center gap-2 overflow-hidden">
@@ -131,7 +131,7 @@ const StylePanel = ({ styles, onUpdateStyles, fontList, onApplyPreset, videoDime
                         max="200"
                         value={styles.fontSize}
                         onChange={(e) => onUpdateStyles({ ...styles, fontSize: parseInt(e.target.value) })}
-                        className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                        className="w-full h-2 md:h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
                         aria-labelledby="font-size-label"
                         aria-valuemin={20}
                         aria-valuemax={200}
@@ -141,11 +141,11 @@ const StylePanel = ({ styles, onUpdateStyles, fontList, onApplyPreset, videoDime
 
                 <div className="mb-4">
                     <label className="text-xs text-gray-400 block mb-2">TEXT COLOR</label>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap">
                         {['#FFFFFF', '#FFFF00', '#00FFFF', '#FF00FF', '#FF0000', '#00FF00'].map(color => (
                             <button
                                 key={color}
-                                className={`w-6 h-6 rounded-full cursor-pointer ring-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 focus-visible:ring-offset-gray-900 ${styles.textColor === color ? 'ring-blue-500' : 'ring-transparent'}`}
+                                className={`w-8 h-8 md:w-6 md:h-6 rounded-full cursor-pointer ring-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 focus-visible:ring-offset-gray-900 ${styles.textColor === color ? 'ring-blue-500' : 'ring-transparent'}`}
                                 style={{ backgroundColor: color }}
                                 onClick={() => onUpdateStyles({ ...styles, textColor: color })}
                                 aria-label={`Text color: ${color}`}
@@ -180,11 +180,11 @@ const StylePanel = ({ styles, onUpdateStyles, fontList, onApplyPreset, videoDime
                     {styles.karaokeEnabled && (
                         <div className="mt-2">
                             <label className="text-[10px] text-gray-500 block mb-1">HIGHLIGHT COLOR</label>
-                            <div className="flex gap-2 items-center">
+                            <div className="flex gap-2 items-center flex-wrap">
                                 {['#FFFF00', '#00FFFF', '#FF00FF', '#FF0000', '#00FF00', '#FFA500'].map(color => (
                                     <button
                                         key={color}
-                                        className={`w-6 h-6 rounded-full cursor-pointer ring-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 focus-visible:ring-offset-gray-900 ${styles.highlightColor === color ? 'ring-blue-500' : 'ring-transparent'}`}
+                                        className={`w-8 h-8 md:w-6 md:h-6 rounded-full cursor-pointer ring-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 focus-visible:ring-offset-gray-900 ${styles.highlightColor === color ? 'ring-blue-500' : 'ring-transparent'}`}
                                         style={{ backgroundColor: color }}
                                         onClick={() => onUpdateStyles({ ...styles, highlightColor: color })}
                                         aria-label={`Highlight color: ${color}`}
@@ -249,7 +249,7 @@ const StylePanel = ({ styles, onUpdateStyles, fontList, onApplyPreset, videoDime
                         step="0.5"
                         value={styles.outlineWidth ?? 2}
                         onChange={(e) => onUpdateStyles({ ...styles, outlineWidth: parseFloat(e.target.value) })}
-                        className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                        className="w-full h-2 md:h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
                         aria-labelledby="outline-label"
                         aria-valuenow={styles.outlineWidth ?? 2}
                     />
@@ -264,7 +264,7 @@ const StylePanel = ({ styles, onUpdateStyles, fontList, onApplyPreset, videoDime
                         step="0.5"
                         value={styles.shadowDepth ?? 2}
                         onChange={(e) => onUpdateStyles({ ...styles, shadowDepth: parseFloat(e.target.value) })}
-                        className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                        className="w-full h-2 md:h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
                         aria-labelledby="shadow-label"
                         aria-valuenow={styles.shadowDepth ?? 2}
                     />

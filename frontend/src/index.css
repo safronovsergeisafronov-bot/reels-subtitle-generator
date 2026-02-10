@@ -81,3 +81,25 @@
 .modal-content {
   animation: modal-scale-in 0.2s ease;
 }
+
+/* Mobile-friendly range slider thumbs */
+@media (max-width: 767px) {
+  input[type="range"]::-webkit-slider-thumb {
+    width: 20px;
+    height: 20px;
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+/* Sidebar slide animation */
+@keyframes sidebar-slide-in {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+.sidebar-slide-in {
+  animation: sidebar-slide-in 0.2s ease-out;
+}

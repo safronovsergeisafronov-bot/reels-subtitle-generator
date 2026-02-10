@@ -233,7 +233,7 @@ const SubtitleList = ({ subtitles, currentTime, onSeek, onUpdateSubtitle }) => {
                             key={index}
                             ref={isActive ? activeRef : null}
                             className={cn(
-                                "subtitle-item group relative p-2 rounded-lg border",
+                                "subtitle-item group relative p-3 md:p-2 rounded-lg border",
                                 isActive
                                     ? "bg-indigo-900/30 border-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.2)]"
                                     : "bg-gray-800 border-gray-700 hover:border-gray-600"
@@ -258,7 +258,7 @@ const SubtitleList = ({ subtitles, currentTime, onSeek, onUpdateSubtitle }) => {
                                 ) : (
                                     <button
                                         onClick={() => handleCopy(index, sub.text)}
-                                        className="opacity-0 group-hover:opacity-100 p-1 hover:bg-gray-700 rounded transition-all focus:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                                        className="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-2 md:p-1 hover:bg-gray-700 rounded transition-all focus:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                                         title="Copy text"
                                         aria-label="Copy subtitle text"
                                     >
@@ -318,43 +318,43 @@ const SubtitleList = ({ subtitles, currentTime, onSeek, onUpdateSubtitle }) => {
                                         {sub.text}
                                     </p>
                                     <div className="flex justify-between items-end">
-                                        <div className="flex items-center gap-1">
+                                        <div className="flex items-center gap-1 flex-wrap">
                                             <button
                                                 onClick={() => handleEditStart(index, sub.text)}
-                                                className="flex items-center gap-1 text-gray-500 hover:text-indigo-400 text-xs transition-colors px-2 py-1 rounded hover:bg-gray-700/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                                                className="flex items-center gap-1 text-gray-500 hover:text-indigo-400 text-xs transition-colors px-2 py-2 md:py-1 rounded hover:bg-gray-700/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                                                 title="Редактировать текст субтитра"
                                                 aria-label="Edit subtitle"
                                             >
-                                                <Edit2 size={12} />
+                                                <Edit2 size={14} className="md:w-3 md:h-3" />
                                                 Edit
                                             </button>
                                             <button
                                                 onClick={() => handleSplit(index)}
-                                                className="flex items-center gap-1 text-gray-500 hover:text-amber-400 text-xs transition-colors px-2 py-1 rounded hover:bg-gray-700/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                                                className="flex items-center gap-1 text-gray-500 hover:text-amber-400 text-xs transition-colors px-2 py-2 md:py-1 rounded hover:bg-gray-700/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                                                 title="Разделить по границе предложения или слова"
                                                 aria-label="Split subtitle"
                                             >
-                                                <Scissors size={12} />
+                                                <Scissors size={14} className="md:w-3 md:h-3" />
                                                 Split
                                             </button>
                                             {index < subtitles.length - 1 && (
                                                 <button
                                                     onClick={() => handleMerge(index)}
-                                                    className="flex items-center gap-1 text-gray-500 hover:text-cyan-400 text-xs transition-colors px-2 py-1 rounded hover:bg-gray-700/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                                                    className="flex items-center gap-1 text-gray-500 hover:text-cyan-400 text-xs transition-colors px-2 py-2 md:py-1 rounded hover:bg-gray-700/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                                                     title="Объединить со следующим субтитром"
                                                     aria-label="Merge with next subtitle"
                                                 >
-                                                    <Merge size={12} />
+                                                    <Merge size={14} className="md:w-3 md:h-3" />
                                                     Merge
                                                 </button>
                                             )}
                                             <button
                                                 onClick={() => handleDelete(index)}
-                                                className="flex items-center gap-1 text-gray-500 hover:text-red-400 text-xs transition-colors px-2 py-1 rounded hover:bg-gray-700/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                                                className="flex items-center gap-1 text-gray-500 hover:text-red-400 text-xs transition-colors px-2 py-2 md:py-1 rounded hover:bg-gray-700/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                                                 title="Удалить субтитр"
                                                 aria-label="Delete subtitle"
                                             >
-                                                <Trash2 size={12} />
+                                                <Trash2 size={14} className="md:w-3 md:h-3" />
                                                 Delete
                                             </button>
                                         </div>

@@ -142,7 +142,7 @@ const VideoPlayer = forwardRef(({ src, onTimeUpdate, onLoadedMetadata, videoDime
 
             {/* Fullscreen ESC hint */}
             {isFullscreen && showEscHint && (
-                <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur-sm text-white text-sm px-5 py-3 rounded-xl z-50 shadow-lg border border-gray-700 transition-opacity duration-1000">
+                <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur-sm text-white text-sm md:text-sm px-5 py-3 rounded-xl z-50 shadow-lg border border-gray-700 transition-opacity duration-1000">
                     Нажмите <kbd className="bg-gray-700 px-2 py-0.5 rounded mx-1 font-mono text-xs border border-gray-600">esc</kbd> для выхода
                 </div>
             )}
@@ -163,26 +163,26 @@ const VideoPlayer = forwardRef(({ src, onTimeUpdate, onLoadedMetadata, videoDime
                             step="0.1"
                             value={fsTime}
                             onChange={handleSeekFs}
-                            className="w-full h-1.5 bg-gray-600 rounded-full appearance-none cursor-pointer accent-indigo-500 mb-3"
+                            className="w-full h-2 md:h-1.5 bg-gray-600 rounded-full appearance-none cursor-pointer accent-indigo-500 mb-3"
                             aria-label="Seek"
                         />
                         <div className="flex items-center justify-between">
                             {/* Left: play + time + volume */}
-                            <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-3 md:gap-4">
                                 <button
                                     onClick={togglePlay}
-                                    className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                                    className="w-12 h-12 md:w-10 md:h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors"
                                     aria-label={fsPlaying ? 'Pause' : 'Play'}
                                 >
                                     {fsPlaying
-                                        ? <Pause size={20} className="text-white fill-white" />
-                                        : <Play size={20} className="text-white fill-white ml-0.5" />
+                                        ? <Pause size={22} className="text-white fill-white" />
+                                        : <Play size={22} className="text-white fill-white ml-0.5" />
                                     }
                                 </button>
                                 <span className="text-white text-sm font-mono">
                                     {formatTime(fsTime)} / {formatTime(fsDuration)}
                                 </span>
-                                <div className="flex items-center gap-2">
+                                <div className="hidden md:flex items-center gap-2">
                                     <button
                                         onClick={toggleMuteFs}
                                         className="text-white/70 hover:text-white transition-colors"

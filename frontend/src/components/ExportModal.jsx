@@ -190,7 +190,7 @@ const ExportModal = ({ isOpen, progress: externalProgress, onCancel, taskId, wsU
 
     return (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 modal-overlay" role="dialog" aria-modal="true" aria-label="Exporting video">
-            <div ref={modalRef} className="bg-gray-900 rounded-2xl p-8 w-96 border border-gray-700 shadow-2xl modal-content">
+            <div ref={modalRef} className="bg-gray-900 rounded-2xl p-6 md:p-8 w-full max-w-sm mx-4 border border-gray-700 shadow-2xl modal-content">
                 <div className="flex justify-between items-center mb-6">
                     <h2 className="text-xl font-bold text-white">Exporting Video</h2>
                     <button

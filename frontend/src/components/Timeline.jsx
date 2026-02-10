@@ -316,14 +316,14 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
 
     return (
         <div className="bg-gray-950 border-t border-gray-800 h-full flex flex-col overflow-hidden" role="region" aria-label="Timeline">
-            <div className="flex justify-between items-center px-4 py-2 border-b border-gray-800 bg-gray-900/50">
+            <div className="flex justify-between items-center px-2 md:px-4 py-1.5 md:py-2 border-b border-gray-800 bg-gray-900/50">
                 <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Timeline</span>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 md:gap-4">
                     {clipboard && <span className="text-[10px] text-green-400 bg-green-900/30 px-2 py-0.5 rounded">Copied</span>}
-                    <span className="text-[10px] text-gray-500 font-mono">
+                    <span className="text-[10px] text-gray-500 font-mono hidden md:inline">
                         {Math.round(pixelsPerSecond / 50 * 100)}%
                     </span>
-                    <span className="text-[10px] text-gray-400 font-mono bg-black px-2 py-0.5 rounded border border-gray-800">
+                    <span className="text-[10px] text-gray-400 font-mono bg-black px-1.5 md:px-2 py-0.5 rounded border border-gray-800">
                         {currentTime.toFixed(2)}s / {duration.toFixed(2)}s
                     </span>
                 </div>
@@ -369,12 +369,12 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
                 </div>
 
                 {/* Subtitle Track */}
-                <div className="absolute top-10 left-0 h-16 w-full flex items-center bg-gray-900/20 timeline-bg">
+                <div className="absolute top-10 left-0 h-12 md:h-16 w-full flex items-center bg-gray-900/20 timeline-bg">
                     {(subtitles || []).map((sub, index) => (
                         <div
                             key={index}
                             data-sub-idx={index}
-                            className={`absolute h-10 rounded-lg group
+                            className={`absolute h-8 md:h-10 rounded-lg group
                                 ${selectedIndex === index
                                     ? 'bg-gradient-to-r from-blue-600/80 to-cyan-600/80 border border-cyan-400/60 text-white z-20 shadow-lg shadow-cyan-500/20'
                                     : currentTime >= sub.start && currentTime <= sub.end
@@ -390,18 +390,18 @@ const Timeline = ({ subtitles, currentTime, duration, onUpdateSubtitles, onSeek 
                         >
                             {/* Left resize handle */}
                             <div
-                                className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize rounded-l-lg
+                                className="absolute left-0 top-0 bottom-0 w-3 md:w-2 cursor-ew-resize rounded-l-lg
                                     bg-white/0 hover:bg-white/30 group-hover:bg-white/10 z-20"
                                 onMouseDown={(e) => handleMouseDown(index, 'start', e)}
                             />
                             {/* Right resize handle */}
                             <div
-                                className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize rounded-r-lg
+                                className="absolute right-0 top-0 bottom-0 w-3 md:w-2 cursor-ew-resize rounded-r-lg
                                     bg-white/0 hover:bg-white/30 group-hover:bg-white/10 z-20"
                                 onMouseDown={(e) => handleMouseDown(index, 'end', e)}
                             />
-                            <span className="truncate w-full text-center font-medium text-[10px] leading-tight pointer-events-none">{sub.text}</span>
-                            <span className="text-[8px] opacity-50 font-mono pointer-events-none">{(sub.end - sub.start).toFixed(1)}s</span>
+                            <span className="truncate w-full text-center font-medium text-[10px] md:text-[10px] leading-tight pointer-events-none">{sub.text}</span>
+                            <span className="text-[8px] opacity-50 font-mono pointer-events-none hidden md:inline">{(sub.end - sub.start).toFixed(1)}s</span>
                         </div>
                     ))}
                 </div>
