@@ -93,20 +93,28 @@ const SubtitleOverlay = memo(({
               whiteSpace: 'pre-wrap'
             }}
           >
-            {subtitleStyles.karaokeEnabled && sub.words?.length ? (
-              sub.words.map((word, i) => {
-                const isCurrent = currentTime >= word.start && currentTime < word.end;
-                return (
-                  <span key={i} style={{
-                    color: isCurrent ? subtitleStyles.highlightColor : subtitleStyles.textColor,
-                    transition: 'color 0.05s',
-                    textTransform: subtitleStyles.uppercase ? 'uppercase' : 'none',
-                  }}>
-                    {word.word}{i < sub.words.length - 1 ? ' ' : ''}
-                  </span>
-                );
-              })
-            ) : (
+            {subtitleStyles.karaokeEnabled && sub.words?.length ? (() => {
+              const MIN_HL = 0.2; // 200ms minimum highlight
+              let highlightIdx = -1;
+              for (let i = 0; i < sub.words.length; i++) {
+                const w = sub.words[i];
+                const nextStart = i < sub.words.length - 1 ? sub.words[i + 1].start : sub.end;
+                const effectiveEnd = Math.min(Math.max(w.end, w.start + MIN_HL), nextStart);
+                if (currentTime >= w.start && currentTime < effectiveEnd) {
+                  highlightIdx = i;
+                  break;
+                }
+              }
+              return sub.words.map((word, i) => (
+                <span key={i} style={{
+                  color: i === highlightIdx ? subtitleStyles.highlightColor : subtitleStyles.textColor,
+                  transition: 'color 0.05s',
+                  textTransform: subtitleStyles.uppercase ? 'uppercase' : 'none',
+                }}>
+                  {word.word}{i < sub.words.length - 1 ? ' ' : ''}
+                </span>
+              ));
+            })() : (
               subtitleStyles.uppercase ? sub.text.toUpperCase() : sub.text
             )}
           </div>

@@ -67,14 +67,18 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         words = sub.get("words", [])
 
         if karaoke_enabled and words:
+            MIN_HL = 0.2  # 200ms minimum highlight duration
             # Generate per-word dialogue lines: each line shows full subtitle text
             # but only the current word is highlighted
             word_texts = [w["word"].upper() if uppercase else w["word"] for w in words]
             full_text = " ".join(word_texts)
 
             for wi, word in enumerate(words):
+                next_start = words[wi + 1]["start"] if wi < len(words) - 1 else sub["end"]
+                effective_end = min(max(word["end"], word["start"] + MIN_HL), next_start)
+
                 w_start = format_timestamp(word["start"])
-                w_end = format_timestamp(word["end"])
+                w_end = format_timestamp(effective_end)
 
                 # Build text with inline color overrides
                 parts = []
@@ -90,7 +94,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
                 # Fill gaps between words with no-highlight version
                 if wi < len(words) - 1:
-                    gap_start = word["end"]
+                    gap_start = effective_end
                     gap_end = words[wi + 1]["start"]
                     if gap_end > gap_start + 0.01:
                         gs = format_timestamp(gap_start)

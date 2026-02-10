@@ -267,11 +267,27 @@ function AppContent() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isPlaying, canUndo, canRedo, undo, redo, toast]);
 
-  const handleTimeUpdate = useCallback((e) => setCurrentTime(e.target.currentTime), []);
+  const handleTimeUpdate = useCallback((e) => {
+    if (!isPlaying) setCurrentTime(e.target.currentTime);
+  }, [isPlaying]);
   const handleLoadedMetadata = useCallback((e) => {
     setDuration(e.target.duration);
     setVideoDimensions({ width: e.target.videoWidth, height: e.target.videoHeight });
   }, []);
+
+  // Smooth 60fps time updates during playback via rAF
+  useEffect(() => {
+    if (!isPlaying || !videoRef.current) return;
+    let rafId;
+    const tick = () => {
+      if (videoRef.current) {
+        setCurrentTime(videoRef.current.currentTime);
+      }
+      rafId = requestAnimationFrame(tick);
+    };
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, [isPlaying]);
 
   const handleSeek = useCallback((time) => {
     if (videoRef.current) videoRef.current.currentTime = time;
